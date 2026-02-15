@@ -6,9 +6,9 @@
 [![Release](https://img.shields.io/github/v/release/panbanda/croxy)](https://github.com/panbanda/croxy/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Cut your API bill by routing cheap requests to local models.**
+**See what your AI tools are actually doing.**
 
-Croxy sits between your tools and the Anthropic API, routing requests to different backends based on model name. Run Opus on Anthropic and let Sonnet/Haiku hit Ollama or MLX locally -- your tools never know the difference.
+Croxy sits between your tools and the Anthropic API, giving you real-time visibility into every request: token usage per request with percentiles, response time percentiles, error breakdowns by status code, and per-provider metrics. Optionally route requests to other providers or local models based on model name.
 
 One line in your shell profile (`eval "$(croxy shellenv)"`) and Claude Code, Cursor, or any Anthropic-compatible client automatically routes through croxy. No SDK changes, no code changes, no per-project config.
 
@@ -83,16 +83,16 @@ eval "$(croxy shellenv)"
 
 If croxy is running, tools like Claude Code will automatically route through it. If it isn't, the variable is simply not set.
 
-## Backend Guides
+## Provider Guides
 
-Croxy works with any backend that speaks the Anthropic Messages API (`/v1/messages`). Requests from clients like Claude Code are forwarded as-is; croxy handles routing, model rewriting, and auth.
+Croxy works with any provider that speaks the Anthropic Messages API (`/v1/messages`). Requests from clients like Claude Code are forwarded as-is; croxy handles routing, model rewriting, and auth.
 
 ### Anthropic (passthrough)
 
 No special configuration needed. Requests are forwarded directly with the client's API key.
 
 ```toml
-[backends.anthropic]
+[provider.anthropic]
 url = "https://api.anthropic.com"
 ```
 
@@ -101,7 +101,7 @@ url = "https://api.anthropic.com"
 Ollama natively supports the Anthropic Messages API. Use `strip_auth` to remove the Anthropic API key (Ollama doesn't need it), and `stub_count_tokens` because Ollama doesn't implement the `/v1/messages/count_tokens` endpoint that Claude Code calls for token budgeting.
 
 ```toml
-[backends.ollama]
+[provider.ollama]
 url = "http://localhost:11434"
 strip_auth = true
 api_key = "ollama"
@@ -113,7 +113,7 @@ Route specific models to Ollama with a model rewrite:
 ```toml
 [[routes]]
 pattern = "sonnet|haiku"
-backend = "ollama"
+provider = "ollama"
 model = "qwen3-coder:30b"
 ```
 
@@ -135,52 +135,52 @@ The `--enable-auto-tool-choice` and `--tool-call-parser` flags are required for 
 Configure croxy to route to it:
 
 ```toml
-[backends.mlx]
+[provider.mlx]
 url = "http://localhost:8000"
 strip_auth = true
 stub_count_tokens = true
 
 [[routes]]
 pattern = "sonnet|haiku"
-backend = "mlx"
+provider = "mlx"
 model = "mlx-community/Qwen3-Coder-8B-4bit"
 ```
 
-### Mixing Backends
+### Mixing Providers
 
-A typical setup routes expensive models to Anthropic and cheaper/faster models to a local backend:
+A typical setup routes expensive models to Anthropic and cheaper/faster models to a local provider:
 
 ```toml
-[backends.anthropic]
+[provider.anthropic]
 url = "https://api.anthropic.com"
 
-[backends.mlx]
+[provider.mlx]
 url = "http://localhost:8000"
 strip_auth = true
 stub_count_tokens = true
 
 [[routes]]
 pattern = "opus"
-backend = "anthropic"
+provider = "anthropic"
 
 [[routes]]
 pattern = "sonnet|haiku"
-backend = "mlx"
+provider = "mlx"
 model = "mlx-community/Qwen3-Coder-8B-4bit"
 
 [default]
-backend = "anthropic"
+provider = "anthropic"
 ```
 
 ## Configuration Reference
 
-### Backends
+### Providers
 
 | Field | Description |
 |-------|-------------|
-| `url` | Backend base URL |
+| `url` | Provider base URL |
 | `strip_auth` | Remove Authorization and x-api-key headers before forwarding |
-| `api_key` | Set x-api-key header for this backend |
+| `api_key` | Set x-api-key header for this provider |
 | `stub_count_tokens` | Return `{"input_tokens": 0}` for `/count_tokens` requests |
 
 ### Routes
@@ -190,10 +190,10 @@ Routes are matched in order against the `model` field in the JSON request body. 
 | Field | Description |
 |-------|-------------|
 | `pattern` | Regex matched against the model name |
-| `backend` | Backend to route to |
+| `provider` | Provider to route to |
 | `model` | Rewrite the model name before forwarding |
 
-Unmatched requests go to `[default].backend`.
+Unmatched requests go to `[default].provider`.
 
 ### Environment Override
 

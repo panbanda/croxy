@@ -13,7 +13,7 @@ pub struct RequestRecord {
     pub timestamp: Instant,
     pub wallclock: DateTime<Utc>,
     pub model: String,
-    pub backend: String,
+    pub provider: String,
     pub routed: bool,
     pub status: u16,
     pub duration: Duration,
@@ -135,7 +135,7 @@ impl MetricsStore {
         let entry = serde_json::json!({
             "timestamp": record.wallclock.to_rfc3339(),
             "model": &record.model,
-            "backend": &record.backend,
+            "provider": &record.provider,
             "status": record.status,
             "duration_ms": record.duration.as_millis() as u64,
             "input_tokens": record.input_tokens,
@@ -217,7 +217,7 @@ mod tests {
             timestamp: Instant::now(),
             wallclock: Utc::now(),
             model: "claude-opus-4-6".to_string(),
-            backend: "anthropic".to_string(),
+            provider: "anthropic".to_string(),
             routed: false,
             status: 200,
             duration: Duration::from_millis(500),
@@ -408,7 +408,7 @@ mod tests {
         let entry: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
         assert_eq!(entry["model"], "claude-opus-4-6");
         assert_eq!(entry["status"], 200);
-        assert_eq!(entry["backend"], "anthropic");
+        assert_eq!(entry["provider"], "anthropic");
     }
 
     #[test]
