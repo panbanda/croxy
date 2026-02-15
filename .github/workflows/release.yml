@@ -182,6 +182,6 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add Formula/croxy.rb
-            git commit -m "Update croxy to ${VERSION}"
-            git push
+            git diff --cached --quiet || git commit -m "Update croxy to ${VERSION}"
+            git diff --cached --quiet || git push
           fi

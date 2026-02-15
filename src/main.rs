@@ -287,7 +287,7 @@ fn detach(config_path: &PathBuf, verbose: bool, retention: u64) {
     // Poll until the daemon is accepting connections or the process dies
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     loop {
-        if !pid_is_alive(child_pid as i32) {
+        if !pid_is_alive(i32::try_from(child_pid).expect("invalid pid")) {
             remove_pid_file();
             eprintln!("croxy failed to start, check {}", log_path().display());
             std::process::exit(1);
@@ -438,7 +438,7 @@ async fn run_foreground(listener: TcpListener, app: AxumRouter, metrics: Arc<Met
                 let _ = shutdown_rx.await;
             })
             .await
-            .unwrap();
+            .unwrap_or_else(|e| tracing::error!("server error: {e}"));
     });
 
     spawn_eviction_task(&metrics);

@@ -81,8 +81,8 @@ impl MetricsStore {
     /// Update output_tokens and duration for a previously recorded entry by ID.
     pub fn finalize_stream(&self, id: u64, output_tokens: u64, duration: Duration) {
         let completed = {
-            let index = self.id_index.read().expect("index lock poisoned");
             let mut records = self.records.write().expect("metrics lock poisoned");
+            let index = self.id_index.read().expect("index lock poisoned");
             if let Some(&idx) = index.get(&id) {
                 if let Some(record) = records.get_mut(idx) {
                     record.output_tokens = output_tokens;
