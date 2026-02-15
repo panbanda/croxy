@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/panbanda/croxy/compare/croxy-v1.0.1...croxy-v1.0.2) (2026-02-15)
+
+
+### Bug Fixes
+
+* align cli description with package metadata ([2f0fcb7](https://github.com/panbanda/croxy/commit/2f0fcb7ef1eae41d6ce65e336c4bdb11eb046e06))
+
 ## [1.0.1](https://github.com/panbanda/croxy/compare/croxy-v1.0.0...croxy-v1.0.1) (2026-02-15)
 
 
