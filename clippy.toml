@@ -1,0 +1,8 @@
+cognitive-complexity-threshold = 15
+type-complexity-threshold = 250
+single-char-binding-names-threshold = 4
+too-many-lines-threshold = 100
+excessive-nesting-threshold = 10
+too-many-arguments-threshold = 7
+enum-variant-size-threshold = 200
+future-size-threshold = 16384

@@ -1,0 +1,31 @@
+name: Omen Analysis
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  omen:
+    name: Risk & Health Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Omen analysis
+        uses: panbanda/omen@omen-v4.21.2
+        with:
+          comment: 'true'
+          label: 'true'
