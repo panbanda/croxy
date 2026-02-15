@@ -147,8 +147,8 @@ fn draw_latency(frame: &mut Frame, area: Rect, snap: &[crate::metrics::RequestRe
             ),
         ]),
     ];
-    let widget = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(" Duration "));
+    let widget =
+        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(" Duration "));
     frame.render_widget(widget, area);
 }
 
@@ -308,8 +308,7 @@ fn draw_live_log(
                 Cell::from(r.model.as_str()),
                 Cell::from(r.backend.as_str()).style(Style::default().fg(Color::DarkGray)),
                 Cell::from(r.status.to_string()).style(status_style),
-                Cell::from(format_duration(r.duration))
-                    .style(Style::default().fg(Color::White)),
+                Cell::from(format_duration(r.duration)).style(Style::default().fg(Color::White)),
                 Cell::from(Line::from(vec![
                     Span::styled(
                         format_tokens(r.input_tokens),
