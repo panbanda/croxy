@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.0](https://github.com/panbanda/croxy/compare/croxy-v0.2.0...croxy-v1.0.0) (2026-02-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* Config keys `[backends.X]` and `backend = "X"` are now `[provider.X]` and `provider = "X"`. The metrics JSON log key changes from `"backend"` to `"provider"`. Users must update their config.toml.
+
+### Bug Fixes
+
+* add serde alias for legacy "backend" key in metrics logs ([17b73dd](https://github.com/panbanda/croxy/commit/17b73ddc06c1b5c333b007d399c9ff8f8e210a5e))
+
+
+### Reverts
+
+* remove backward compat alias for legacy "backend" log key ([e59cae3](https://github.com/panbanda/croxy/commit/e59cae38d88acca3d1ac3a2a1bc78dcba6435ae3))
+
+
+### Code Refactoring
+
+* rename backend to provider throughout codebase ([3c08adf](https://github.com/panbanda/croxy/commit/3c08adf6306ee4dc771ee6a342dca460d3f50dc4))
+
 ## [0.2.0](https://github.com/panbanda/croxy/compare/croxy-v0.1.0...croxy-v0.2.0) (2026-02-15)
 
 
