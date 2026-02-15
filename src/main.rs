@@ -28,7 +28,7 @@ use croxy::tui::ExitMode;
 #[derive(Parser)]
 #[command(
     name = "croxy",
-    about = "Observability proxy for the Anthropic API with provider routing"
+    about = "Model-routing proxy for the Anthropic API"
 )]
 struct Cli {
     /// Path to config file
