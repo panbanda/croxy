@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/panbanda/croxy/compare/croxy-v1.0.0...croxy-v1.0.1) (2026-02-15)
+
+
+### Bug Fixes
+
+* align cli description with homebrew formula and fix tap push ([60b7140](https://github.com/panbanda/croxy/commit/60b7140b3ae193e1cafc39f0f3b741cce9142736))
+
 ## [1.0.0](https://github.com/panbanda/croxy/compare/croxy-v0.2.0...croxy-v1.0.0) (2026-02-15)
 
 
