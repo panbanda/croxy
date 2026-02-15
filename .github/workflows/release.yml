@@ -35,7 +35,7 @@ jobs:
   build:
     name: Build (${{ matrix.target }})
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
 
     strategy:
       fail-fast: false
@@ -46,7 +46,7 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-15-intel
           - target: aarch64-apple-darwin
             os: macos-latest
 
@@ -95,7 +95,7 @@ jobs:
   homebrew:
     name: Update Homebrew Formula
     needs: [release-please, build]
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
 
     permissions:

@@ -24,6 +24,7 @@ pub struct RequestRecord {
 
 pub struct MetricsStore {
     records: RwLock<Vec<RequestRecord>>,
+    id_index: RwLock<HashMap<u64, usize>>,
     window: Duration,
     logger: Option<Mutex<MetricsLogger>>,
     next_id: AtomicU64,
@@ -33,6 +34,7 @@ impl MetricsStore {
     pub fn new(window: Duration) -> Self {
         Self {
             records: RwLock::new(Vec::new()),
+            id_index: RwLock::new(HashMap::new()),
             window,
             logger: None,
             next_id: AtomicU64::new(1),
@@ -42,6 +44,7 @@ impl MetricsStore {
     pub fn with_logger(window: Duration, logger: MetricsLogger) -> Self {
         Self {
             records: RwLock::new(Vec::new()),
+            id_index: RwLock::new(HashMap::new()),
             window,
             logger: Some(Mutex::new(logger)),
             next_id: AtomicU64::new(1),
@@ -51,31 +54,43 @@ impl MetricsStore {
     pub fn record(&self, mut record: RequestRecord) {
         record.id = self.next_id.fetch_add(1, Ordering::Relaxed);
         self.log_record(&record);
-        self.records
+        let mut records = self.records.write().expect("metrics lock poisoned");
+        let idx = records.len();
+        let id = record.id;
+        records.push(record);
+        self.id_index
             .write()
-            .expect("metrics lock poisoned")
-            .push(record);
+            .expect("index lock poisoned")
+            .insert(id, idx);
     }
 
     /// Record a pending entry and return its stable ID for later finalization.
     pub fn record_pending(&self, mut record: RequestRecord) -> u64 {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         record.id = id;
-        self.records
+        let mut records = self.records.write().expect("metrics lock poisoned");
+        let idx = records.len();
+        records.push(record);
+        self.id_index
             .write()
-            .expect("metrics lock poisoned")
-            .push(record);
+            .expect("index lock poisoned")
+            .insert(id, idx);
         id
     }
 
     /// Update output_tokens and duration for a previously recorded entry by ID.
     pub fn finalize_stream(&self, id: u64, output_tokens: u64, duration: Duration) {
         let completed = {
+            let index = self.id_index.read().expect("index lock poisoned");
             let mut records = self.records.write().expect("metrics lock poisoned");
-            if let Some(record) = records.iter_mut().find(|r| r.id == id) {
-                record.output_tokens = output_tokens;
-                record.duration = duration;
-                Some(record.clone())
+            if let Some(&idx) = index.get(&id) {
+                if let Some(record) = records.get_mut(idx) {
+                    record.output_tokens = output_tokens;
+                    record.duration = duration;
+                    Some(record.clone())
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -102,10 +117,15 @@ impl MetricsStore {
 
     pub fn evict_expired(&self) {
         let cutoff = Instant::now() - self.window;
-        self.records
-            .write()
-            .expect("metrics lock poisoned")
-            .retain(|r| r.timestamp >= cutoff);
+        let mut records = self.records.write().expect("metrics lock poisoned");
+        records.retain(|r| r.timestamp >= cutoff);
+
+        // Rebuild index since retain shifts Vec positions
+        let mut index = self.id_index.write().expect("index lock poisoned");
+        index.clear();
+        for (i, record) in records.iter().enumerate() {
+            index.insert(record.id, i);
+        }
     }
 
     fn log_record(&self, record: &RequestRecord) {

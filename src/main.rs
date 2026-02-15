@@ -219,6 +219,14 @@ fn detach(config_path: &PathBuf, verbose: bool, retention: u64) {
         remove_pid_file();
     }
 
+    let config = load_config(config_path);
+    let host = match config.server.host.as_str() {
+        "0.0.0.0" => "127.0.0.1",
+        "::" => "::1",
+        other => other,
+    };
+    let probe_addr = format!("{host}:{}", config.server.port);
+
     let dir = config_dir();
     fs::create_dir_all(&dir).unwrap_or_else(|e| {
         eprintln!("failed to create {}: {e}", dir.display());
@@ -276,17 +284,29 @@ fn detach(config_path: &PathBuf, verbose: bool, retention: u64) {
         std::process::exit(1);
     });
 
-    // Wait briefly and check the child is still alive
-    std::thread::sleep(std::time::Duration::from_millis(500));
-    if pid_is_alive(child_pid as i32) {
-        eprintln!(
-            "croxy started (pid {child_pid}), log: {}",
-            log_path().display()
-        );
-    } else {
-        remove_pid_file();
-        eprintln!("croxy failed to start, check {}", log_path().display());
-        std::process::exit(1);
+    // Poll until the daemon is accepting connections or the process dies
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if !pid_is_alive(child_pid as i32) {
+            remove_pid_file();
+            eprintln!("croxy failed to start, check {}", log_path().display());
+            std::process::exit(1);
+        }
+        if TcpStream::connect(&probe_addr).is_ok() {
+            eprintln!(
+                "croxy started (pid {child_pid}), log: {}",
+                log_path().display()
+            );
+            return;
+        }
+        if std::time::Instant::now() >= deadline {
+            eprintln!(
+                "croxy started (pid {child_pid}) but not yet accepting connections, log: {}",
+                log_path().display()
+            );
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }
 

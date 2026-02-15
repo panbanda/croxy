@@ -47,6 +47,19 @@ fn stub_count_tokens_response() -> Response {
     response
 }
 
+fn is_hop_by_hop(name: &http::header::HeaderName) -> bool {
+    matches!(
+        name.as_str(),
+        "connection"
+            | "keep-alive"
+            | "proxy-connection"
+            | "te"
+            | "trailer"
+            | "transfer-encoding"
+            | "upgrade"
+    )
+}
+
 fn build_forwarding_headers(
     original_headers: &HeaderMap,
     route: &ResolvedRoute,
@@ -54,7 +67,7 @@ fn build_forwarding_headers(
 ) -> HeaderMap {
     let mut headers = HeaderMap::new();
     for (key, value) in original_headers {
-        if key == http::header::HOST {
+        if key == http::header::HOST || is_hop_by_hop(key) {
             continue;
         }
         if route.strip_auth && (key == http::header::AUTHORIZATION || key.as_str() == "x-api-key") {
@@ -132,12 +145,10 @@ async fn handle_error_response(
     metrics: &MetricsStore,
 ) -> Response {
     let error_bytes = read_capped_body(upstream_response, max_body_size).await;
-    let truncated =
-        String::from_utf8_lossy(&error_bytes[..error_bytes.len().min(1024)]).to_string();
     let error_len = error_bytes.len();
 
     let mut record = record;
-    record.error_body = Some(truncated);
+    record.error_body = Some(format!("HTTP {status} ({error_len} bytes)"));
     metrics.record(record);
 
     let mut headers = response_headers;
@@ -210,7 +221,7 @@ fn stream_response(
 fn filter_response_headers(upstream_headers: &reqwest::header::HeaderMap) -> HeaderMap {
     let mut headers = HeaderMap::new();
     for (key, value) in upstream_headers {
-        if key == http::header::TRANSFER_ENCODING || key == http::header::CONTENT_ENCODING {
+        if is_hop_by_hop(key) || key == http::header::CONTENT_ENCODING {
             continue;
         }
         headers.insert(key.clone(), value.clone());
