@@ -92,7 +92,7 @@ fn build_forwarding_headers(
         );
     }
 
-    // Strip accept-encoding so backend doesn't compress -- we need raw bytes for streaming passthrough
+    // Strip accept-encoding so provider doesn't compress -- we need raw bytes for streaming passthrough
     headers.remove(http::header::ACCEPT_ENCODING);
 
     headers
@@ -271,7 +271,7 @@ pub async fn handle_request(
 
     info!(
         model = %model,
-        backend = %route.backend_url,
+        provider = %route.provider_url,
         rewrite = ?route.model_rewrite,
         path = %path,
         estimated_tokens = body_len / 4,
@@ -284,10 +284,10 @@ pub async fn handle_request(
         body_bytes
     };
 
-    let url = format!("{}{}", route.backend_url.trim_end_matches('/'), path);
+    let url = format!("{}{}", route.provider_url.trim_end_matches('/'), path);
     let headers = build_forwarding_headers(&parts.headers, &route, final_body.len());
 
-    debug!(url = %url, "forwarding to backend");
+    debug!(url = %url, "forwarding to provider");
     log_outgoing_headers(&headers);
     if !final_body.is_empty() {
         debug!(body_bytes = final_body.len(), "outgoing body");
@@ -301,14 +301,14 @@ pub async fn handle_request(
         .send()
         .await
         .map_err(|e| {
-            error!(url = %url, error = %e, "backend request failed");
-            (StatusCode::BAD_GATEWAY, format!("backend unreachable: {e}"))
+            error!(url = %url, error = %e, "provider request failed");
+            (StatusCode::BAD_GATEWAY, format!("provider unreachable: {e}"))
         })?;
 
     let status = StatusCode::from_u16(upstream_response.status().as_u16())
         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
-    info!(status = %status, url = %url, "backend responded");
+    info!(status = %status, url = %url, "provider responded");
 
     let input_tokens = parse_token_header(upstream_response.headers(), "x-usage-input-tokens")
         .unwrap_or((body_len / 4) as u64);
@@ -322,7 +322,7 @@ pub async fn handle_request(
         timestamp: start,
         wallclock,
         model: model.clone(),
-        backend: route.backend_name.clone(),
+        provider: route.provider_name.clone(),
         routed: route.routed,
         status: status.as_u16(),
         duration: start.elapsed(),

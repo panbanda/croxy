@@ -2,22 +2,22 @@
 host = "127.0.0.1"
 port = 3100
 
-[backends.anthropic]
+[provider.anthropic]
 url = "https://api.anthropic.com"
 
-[backends.ollama]
+[provider.ollama]
 url = "http://localhost:11434"
 strip_auth = true
 api_key = "ollama"
 
 [[routes]]
 pattern = "opus"
-backend = "anthropic"
+provider = "anthropic"
 
 [[routes]]
 pattern = "sonnet|haiku"
-backend = "ollama"
+provider = "ollama"
 model = "qwen2.5-coder:32b"
 
 [default]
-backend = "anthropic"
+provider = "anthropic"

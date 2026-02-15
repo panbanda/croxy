@@ -15,7 +15,7 @@ use crate::metrics_log::rotated_path;
 struct LogEntry {
     timestamp: DateTime<Utc>,
     model: String,
-    backend: String,
+    provider: String,
     status: u16,
     duration_ms: u64,
     input_tokens: u64,
@@ -32,7 +32,7 @@ pub fn parse_log_entry(line: &str) -> Option<RequestRecord> {
         timestamp,
         wallclock: entry.timestamp,
         model: entry.model,
-        backend: entry.backend,
+        provider: entry.provider,
         routed: false,
         status: entry.status,
         duration: Duration::from_millis(entry.duration_ms),
@@ -152,7 +152,7 @@ mod tests {
             None => "null".to_string(),
         };
         format!(
-            r#"{{"timestamp":"{ts}","model":"{model}","backend":"anthropic","status":200,"duration_ms":100,"input_tokens":50,"output_tokens":75,"error":{error_json}}}"#
+            r#"{{"timestamp":"{ts}","model":"{model}","provider":"anthropic","status":200,"duration_ms":100,"input_tokens":50,"output_tokens":75,"error":{error_json}}}"#
         )
     }
 
@@ -162,7 +162,7 @@ mod tests {
         let line = make_entry(&ts, "claude-opus-4-6", None);
         let record = parse_log_entry(&line).expect("should parse");
         assert_eq!(record.model, "claude-opus-4-6");
-        assert_eq!(record.backend, "anthropic");
+        assert_eq!(record.provider, "anthropic");
         assert_eq!(record.status, 200);
         assert_eq!(record.duration.as_millis(), 100);
         assert_eq!(record.input_tokens, 50);

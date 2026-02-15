@@ -26,7 +26,7 @@ use croxy::router::Router;
 use croxy::tui::ExitMode;
 
 #[derive(Parser)]
-#[command(name = "croxy", about = "Model-routing proxy for the Anthropic API")]
+#[command(name = "croxy", about = "Observability proxy for the Anthropic API with provider routing")]
 struct Cli {
     /// Path to config file
     #[arg(short, long, global = true, value_name = "FILE")]
@@ -160,10 +160,10 @@ host = "127.0.0.1"
 port = 3100
 # max_body_size = 10485760  # 10 MiB
 
-[backends.anthropic]
+[provider.anthropic]
 url = "https://api.anthropic.com"
 
-[backends.ollama]
+[provider.ollama]
 url = "http://localhost:11434"
 strip_auth = true
 api_key = "ollama"
@@ -171,15 +171,15 @@ stub_count_tokens = true
 
 [[routes]]
 pattern = "opus"
-backend = "anthropic"
+provider = "anthropic"
 
 [[routes]]
 pattern = "sonnet|haiku"
-backend = "ollama"
+provider = "ollama"
 model = "qwen2.5-coder:32b"
 
 [default]
-backend = "anthropic"
+provider = "anthropic"
 
 # [logging.metrics]
 # enabled = true

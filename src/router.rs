@@ -3,8 +3,8 @@ use regex::Regex;
 use crate::config::Config;
 
 pub struct ResolvedRoute {
-    pub backend_name: String,
-    pub backend_url: String,
+    pub provider_name: String,
+    pub provider_url: String,
     pub model_rewrite: Option<String>,
     pub strip_auth: bool,
     pub api_key: Option<String>,
@@ -14,8 +14,8 @@ pub struct ResolvedRoute {
 
 struct CompiledRoute {
     pattern: Regex,
-    backend_name: String,
-    backend_url: String,
+    provider_name: String,
+    provider_url: String,
     model_rewrite: Option<String>,
     strip_auth: bool,
     api_key: Option<String>,
@@ -29,23 +29,23 @@ pub struct Router {
 
 impl Router {
     pub fn from_config(config: &Config) -> Result<Self, String> {
-        let default_backend = config
-            .backends
-            .get(&config.default.backend)
+        let default_provider = config
+            .providers
+            .get(&config.default.provider)
             .ok_or_else(|| {
                 format!(
-                    "default backend '{}' not found in backends",
-                    config.default.backend
+                    "default provider '{}' not found in providers",
+                    config.default.provider
                 )
             })?;
 
         let default = ResolvedRoute {
-            backend_name: config.default.backend.clone(),
-            backend_url: default_backend.url.clone(),
+            provider_name: config.default.provider.clone(),
+            provider_url: default_provider.url.clone(),
             model_rewrite: None,
-            strip_auth: default_backend.strip_auth,
-            api_key: default_backend.api_key.clone(),
-            stub_count_tokens: default_backend.stub_count_tokens,
+            strip_auth: default_provider.strip_auth,
+            api_key: default_provider.api_key.clone(),
+            stub_count_tokens: default_provider.stub_count_tokens,
             routed: false,
         };
 
@@ -54,18 +54,21 @@ impl Router {
             let pattern = Regex::new(&route.pattern)
                 .map_err(|e| format!("invalid regex '{}': {}", route.pattern, e))?;
 
-            let backend = config.backends.get(&route.backend).ok_or_else(|| {
-                format!("route backend '{}' not found in backends", route.backend)
+            let provider = config.providers.get(&route.provider).ok_or_else(|| {
+                format!(
+                    "route provider '{}' not found in providers",
+                    route.provider
+                )
             })?;
 
             routes.push(CompiledRoute {
                 pattern,
-                backend_name: route.backend.clone(),
-                backend_url: backend.url.clone(),
+                provider_name: route.provider.clone(),
+                provider_url: provider.url.clone(),
                 model_rewrite: route.model.clone(),
-                strip_auth: backend.strip_auth,
-                api_key: backend.api_key.clone(),
-                stub_count_tokens: backend.stub_count_tokens,
+                strip_auth: provider.strip_auth,
+                api_key: provider.api_key.clone(),
+                stub_count_tokens: provider.stub_count_tokens,
             });
         }
 
@@ -76,8 +79,8 @@ impl Router {
         for route in &self.routes {
             if route.pattern.is_match(model) {
                 return ResolvedRoute {
-                    backend_name: route.backend_name.clone(),
-                    backend_url: route.backend_url.clone(),
+                    provider_name: route.provider_name.clone(),
+                    provider_url: route.provider_url.clone(),
                     model_rewrite: route.model_rewrite.clone(),
                     strip_auth: route.strip_auth,
                     api_key: route.api_key.clone(),
@@ -88,8 +91,8 @@ impl Router {
         }
 
         ResolvedRoute {
-            backend_name: self.default.backend_name.clone(),
-            backend_url: self.default.backend_url.clone(),
+            provider_name: self.default.provider_name.clone(),
+            provider_url: self.default.provider_url.clone(),
             model_rewrite: self.default.model_rewrite.clone(),
             strip_auth: self.default.strip_auth,
             api_key: self.default.api_key.clone(),
@@ -113,22 +116,22 @@ mod tests {
         config(
             r#"
             [server]
-            [backends.anthropic]
+            [provider.anthropic]
             url = "https://api.anthropic.com"
-            [backends.ollama]
+            [provider.ollama]
             url = "http://localhost:11434"
             strip_auth = true
             api_key = "ollama"
             stub_count_tokens = true
             [[routes]]
             pattern = "opus"
-            backend = "anthropic"
+            provider = "anthropic"
             [[routes]]
             pattern = "sonnet|haiku"
-            backend = "ollama"
+            provider = "ollama"
             model = "qwen3-coder:30b"
             [default]
-            backend = "anthropic"
+            provider = "anthropic"
             "#,
         )
     }
@@ -142,7 +145,7 @@ mod tests {
     #[test]
     fn opus_routes_to_anthropic() {
         let route = resolve_production("claude-opus-4-6");
-        assert_eq!(route.backend_url, "https://api.anthropic.com");
+        assert_eq!(route.provider_url, "https://api.anthropic.com");
         assert_eq!(route.model_rewrite, None);
         assert!(!route.strip_auth);
         assert_eq!(route.api_key, None);
@@ -152,7 +155,7 @@ mod tests {
     #[test]
     fn sonnet_routes_to_ollama_with_rewrite() {
         let route = resolve_production("claude-sonnet-4-5-20250929");
-        assert_eq!(route.backend_url, "http://localhost:11434");
+        assert_eq!(route.provider_url, "http://localhost:11434");
         assert_eq!(route.model_rewrite.as_deref(), Some("qwen3-coder:30b"));
         assert!(route.strip_auth);
         assert_eq!(route.api_key.as_deref(), Some("ollama"));
@@ -162,21 +165,21 @@ mod tests {
     #[test]
     fn haiku_routes_to_ollama_with_rewrite() {
         let route = resolve_production("claude-haiku-4-5-20251001");
-        assert_eq!(route.backend_url, "http://localhost:11434");
+        assert_eq!(route.provider_url, "http://localhost:11434");
         assert_eq!(route.model_rewrite.as_deref(), Some("qwen3-coder:30b"));
     }
 
     #[test]
     fn unmatched_model_falls_back_to_default() {
         let route = resolve_production("some-unknown-model");
-        assert_eq!(route.backend_url, "https://api.anthropic.com");
+        assert_eq!(route.provider_url, "https://api.anthropic.com");
         assert_eq!(route.model_rewrite, None);
     }
 
     #[test]
     fn empty_model_falls_back_to_default() {
         let route = resolve_production("");
-        assert_eq!(route.backend_url, "https://api.anthropic.com");
+        assert_eq!(route.provider_url, "https://api.anthropic.com");
     }
 
     #[test]
@@ -184,23 +187,23 @@ mod tests {
         let cfg = config(
             r#"
             [server]
-            [backends.a]
+            [provider.a]
             url = "http://a"
-            [backends.b]
+            [provider.b]
             url = "http://b"
             [[routes]]
             pattern = "opus"
-            backend = "a"
+            provider = "a"
             [[routes]]
             pattern = "opus"
-            backend = "b"
+            provider = "b"
             [default]
-            backend = "a"
+            provider = "a"
             "#,
         );
         let router = Router::from_config(&cfg).unwrap();
         let route = router.resolve("opus");
-        assert_eq!(route.backend_url, "http://a");
+        assert_eq!(route.provider_url, "http://a");
     }
 
     #[test]
@@ -208,13 +211,13 @@ mod tests {
         let cfg = config(
             r#"
             [server]
-            [backends.a]
+            [provider.a]
             url = "http://a"
             [[routes]]
             pattern = "[invalid"
-            backend = "a"
+            provider = "a"
             [default]
-            backend = "a"
+            provider = "a"
             "#,
         );
         let err = Router::from_config(&cfg).err().expect("should fail");
@@ -222,17 +225,17 @@ mod tests {
     }
 
     #[test]
-    fn missing_route_backend_returns_error() {
+    fn missing_route_provider_returns_error() {
         let cfg = config(
             r#"
             [server]
-            [backends.a]
+            [provider.a]
             url = "http://a"
             [[routes]]
             pattern = "test"
-            backend = "nonexistent"
+            provider = "nonexistent"
             [default]
-            backend = "a"
+            provider = "a"
             "#,
         );
         let err = Router::from_config(&cfg).err().expect("should fail");
@@ -240,26 +243,26 @@ mod tests {
     }
 
     #[test]
-    fn resolved_route_includes_backend_name() {
+    fn resolved_route_includes_provider_name() {
         let route = resolve_production("claude-opus-4-6");
-        assert_eq!(route.backend_name, "anthropic");
+        assert_eq!(route.provider_name, "anthropic");
 
         let route = resolve_production("claude-sonnet-4-5-20250929");
-        assert_eq!(route.backend_name, "ollama");
+        assert_eq!(route.provider_name, "ollama");
     }
 
     #[test]
-    fn missing_default_backend_returns_error() {
+    fn missing_default_provider_returns_error() {
         let cfg = config(
             r#"
             [server]
-            [backends.a]
+            [provider.a]
             url = "http://a"
             [[routes]]
             pattern = "x"
-            backend = "a"
+            provider = "a"
             [default]
-            backend = "nonexistent"
+            provider = "nonexistent"
             "#,
         );
         let err = Router::from_config(&cfg).err().expect("should fail");

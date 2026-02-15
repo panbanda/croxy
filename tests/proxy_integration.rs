@@ -24,8 +24,8 @@ impl Drop for AbortOnDrop {
     }
 }
 
-/// Starts a mock backend that echoes request details back as JSON.
-async fn start_echo_backend() -> (String, AbortOnDrop) {
+/// Starts a mock provider that echoes request details back as JSON.
+async fn start_echo_provider() -> (String, AbortOnDrop) {
     let app = AxumRouter::new().fallback(any(echo_handler));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -76,8 +76,8 @@ async fn echo_handler(request: Request) -> Response {
     response
 }
 
-/// Starts a mock backend that returns an error with the given status and body size.
-async fn start_error_backend(status: u16, body_size: usize) -> (String, AbortOnDrop) {
+/// Starts a mock provider that returns an error with the given status and body size.
+async fn start_error_provider(status: u16, body_size: usize) -> (String, AbortOnDrop) {
     let app = AxumRouter::new().fallback(any(move |_req: Request| async move {
         let body = vec![b'x'; body_size];
         let mut response = Response::new(Body::from(body));
@@ -130,46 +130,46 @@ async fn start_proxy(config_toml: &str) -> (String, Arc<AppState>, AbortOnDrop) 
     (url, state, AbortOnDrop(handle))
 }
 
-fn make_config(backend_a_url: &str, backend_b_url: &str) -> String {
+fn make_config(provider_a_url: &str, provider_b_url: &str) -> String {
     format!(
         r#"
         [server]
-        [backends.anthropic]
-        url = "{backend_a_url}"
-        [backends.ollama]
-        url = "{backend_b_url}"
+        [provider.anthropic]
+        url = "{provider_a_url}"
+        [provider.ollama]
+        url = "{provider_b_url}"
         strip_auth = true
         api_key = "ollama"
         stub_count_tokens = true
         [[routes]]
         pattern = "opus"
-        backend = "anthropic"
+        provider = "anthropic"
         [[routes]]
         pattern = "sonnet|haiku"
-        backend = "ollama"
+        provider = "ollama"
         model = "qwen3-coder:30b"
         [default]
-        backend = "anthropic"
+        provider = "anthropic"
         "#
     )
 }
 
-fn single_backend_config(backend_url: &str) -> String {
-    single_backend_config_with(backend_url, "")
+fn single_provider_config(provider_url: &str) -> String {
+    single_provider_config_with(provider_url, "")
 }
 
-fn single_backend_config_with(backend_url: &str, extra_server: &str) -> String {
+fn single_provider_config_with(provider_url: &str, extra_server: &str) -> String {
     format!(
         r#"
         [server]
         {extra_server}
-        [backends.a]
-        url = "{backend_url}"
+        [provider.a]
+        url = "{provider_url}"
         [[routes]]
         pattern = ".*"
-        backend = "a"
+        provider = "a"
         [default]
-        backend = "a"
+        provider = "a"
         "#
     )
 }
@@ -178,17 +178,17 @@ fn client() -> reqwest::Client {
     reqwest::Client::builder().no_proxy().build().unwrap()
 }
 
-/// Test fixture: two echo backends + proxy with standard config. Returns handles that auto-cleanup.
-struct DualBackendFixture {
+/// Test fixture: two echo providers + proxy with standard config. Returns handles that auto-cleanup.
+struct DualProviderFixture {
     proxy_url: String,
     state: Arc<AppState>,
     _handles: (AbortOnDrop, AbortOnDrop, AbortOnDrop),
 }
 
-impl DualBackendFixture {
+impl DualProviderFixture {
     async fn new() -> Self {
-        let (anthropic_url, h1) = start_echo_backend().await;
-        let (ollama_url, h2) = start_echo_backend().await;
+        let (anthropic_url, h1) = start_echo_provider().await;
+        let (ollama_url, h2) = start_echo_provider().await;
         let (proxy_url, state, h3) = start_proxy(&make_config(&anthropic_url, &ollama_url)).await;
         Self {
             proxy_url,
@@ -224,8 +224,8 @@ impl DualBackendFixture {
 }
 
 #[tokio::test]
-async fn routes_opus_to_anthropic_backend() {
-    let f = DualBackendFixture::new().await;
+async fn routes_opus_to_anthropic_provider() {
+    let f = DualProviderFixture::new().await;
     let resp = f.post_messages("claude-opus-4-6").await;
 
     assert!(
@@ -240,7 +240,7 @@ async fn routes_opus_to_anthropic_backend() {
 
 #[tokio::test]
 async fn routes_sonnet_to_ollama_with_model_rewrite() {
-    let f = DualBackendFixture::new().await;
+    let f = DualProviderFixture::new().await;
     let resp = f.post_messages("claude-sonnet-4-5-20250929").await;
 
     assert_eq!(
@@ -251,7 +251,7 @@ async fn routes_sonnet_to_ollama_with_model_rewrite() {
 
 #[tokio::test]
 async fn strips_auth_headers_for_ollama() {
-    let f = DualBackendFixture::new().await;
+    let f = DualProviderFixture::new().await;
     let resp = f
         .post_messages_with_headers(
             "claude-sonnet-4-5-20250929",
@@ -266,7 +266,7 @@ async fn strips_auth_headers_for_ollama() {
 
 #[tokio::test]
 async fn preserves_auth_headers_for_anthropic() {
-    let f = DualBackendFixture::new().await;
+    let f = DualProviderFixture::new().await;
     let resp = f.post_messages("claude-opus-4-6").await;
 
     assert_eq!(
@@ -277,7 +277,7 @@ async fn preserves_auth_headers_for_anthropic() {
 
 #[tokio::test]
 async fn stubs_count_tokens_for_ollama_route() {
-    let f = DualBackendFixture::new().await;
+    let f = DualProviderFixture::new().await;
 
     let resp: serde_json::Value = client()
         .post(format!("{}/v1/messages/count_tokens", f.proxy_url))
@@ -296,7 +296,7 @@ async fn stubs_count_tokens_for_ollama_route() {
 
 #[tokio::test]
 async fn forwards_count_tokens_for_anthropic_route() {
-    let f = DualBackendFixture::new().await;
+    let f = DualProviderFixture::new().await;
 
     let resp: serde_json::Value = client()
         .post(format!("{}/v1/messages/count_tokens", f.proxy_url))
@@ -315,7 +315,7 @@ async fn forwards_count_tokens_for_anthropic_route() {
 
 #[tokio::test]
 async fn strips_accept_encoding() {
-    let f = DualBackendFixture::new().await;
+    let f = DualProviderFixture::new().await;
     let resp = f
         .post_messages_with_headers("claude-opus-4-6", &[("accept-encoding", "gzip, deflate")])
         .await;
@@ -328,7 +328,7 @@ async fn strips_accept_encoding() {
 
 #[tokio::test]
 async fn records_metrics_for_proxied_request() {
-    let f = DualBackendFixture::new().await;
+    let f = DualProviderFixture::new().await;
 
     client()
         .post(format!("{}/v1/messages", f.proxy_url))
@@ -341,7 +341,7 @@ async fn records_metrics_for_proxied_request() {
     let snap = f.state.metrics.snapshot();
     assert_eq!(snap.len(), 1);
     assert_eq!(snap[0].model, "claude-opus-4-6");
-    assert_eq!(snap[0].backend, "anthropic");
+    assert_eq!(snap[0].provider, "anthropic");
     assert_eq!(snap[0].status, 200);
     assert!(snap[0].duration.as_nanos() > 0);
     assert!(snap[0].input_tokens > 0);
@@ -349,8 +349,9 @@ async fn records_metrics_for_proxied_request() {
 }
 
 #[tokio::test]
-async fn returns_502_when_backend_unreachable() {
-    let (proxy_url, _state, _h) = start_proxy(&single_backend_config("http://127.0.0.1:1")).await;
+async fn returns_502_when_provider_unreachable() {
+    let (proxy_url, _state, _h) =
+        start_proxy(&single_provider_config("http://127.0.0.1:1")).await;
 
     let resp = client()
         .post(format!("{proxy_url}/v1/messages"))
@@ -365,8 +366,8 @@ async fn returns_502_when_backend_unreachable() {
 
 #[tokio::test]
 async fn returns_400_for_invalid_json_body() {
-    let (backend_url, _h1) = start_echo_backend().await;
-    let (proxy_url, _state, _h2) = start_proxy(&single_backend_config(&backend_url)).await;
+    let (provider_url, _h1) = start_echo_provider().await;
+    let (proxy_url, _state, _h2) = start_proxy(&single_provider_config(&provider_url)).await;
 
     let resp = client()
         .post(format!("{proxy_url}/v1/messages"))
@@ -381,9 +382,9 @@ async fn returns_400_for_invalid_json_body() {
 
 #[tokio::test]
 async fn rejects_oversized_request_body() {
-    let (backend_url, _h1) = start_echo_backend().await;
-    let (proxy_url, _state, _h2) = start_proxy(&single_backend_config_with(
-        &backend_url,
+    let (provider_url, _h1) = start_echo_provider().await;
+    let (proxy_url, _state, _h2) = start_proxy(&single_provider_config_with(
+        &provider_url,
         "max_body_size = 256",
     ))
     .await;
@@ -406,9 +407,9 @@ async fn rejects_oversized_request_body() {
 
 #[tokio::test]
 async fn accepts_body_within_configured_limit() {
-    let (backend_url, _h1) = start_echo_backend().await;
-    let (proxy_url, _state, _h2) = start_proxy(&single_backend_config_with(
-        &backend_url,
+    let (provider_url, _h1) = start_echo_provider().await;
+    let (proxy_url, _state, _h2) = start_proxy(&single_provider_config_with(
+        &provider_url,
         "max_body_size = 10485760",
     ))
     .await;
@@ -426,8 +427,8 @@ async fn accepts_body_within_configured_limit() {
 
 #[tokio::test]
 async fn caps_error_response_body() {
-    let (error_url, _h1) = start_error_backend(500, 65536).await;
-    let (proxy_url, state, _h2) = start_proxy(&single_backend_config_with(
+    let (error_url, _h1) = start_error_provider(500, 65536).await;
+    let (proxy_url, state, _h2) = start_proxy(&single_provider_config_with(
         &error_url,
         "max_body_size = 4096",
     ))
@@ -458,9 +459,9 @@ async fn caps_error_response_body() {
 }
 
 #[tokio::test]
-async fn records_error_metrics_for_backend_errors() {
-    let (error_url, _h1) = start_error_backend(429, 32).await;
-    let (proxy_url, state, _h2) = start_proxy(&single_backend_config(&error_url)).await;
+async fn records_error_metrics_for_provider_errors() {
+    let (error_url, _h1) = start_error_provider(429, 32).await;
+    let (proxy_url, state, _h2) = start_proxy(&single_provider_config(&error_url)).await;
 
     let resp = client()
         .post(format!("{proxy_url}/v1/messages"))
@@ -481,8 +482,8 @@ async fn records_error_metrics_for_backend_errors() {
 
 #[tokio::test]
 async fn get_request_without_body_routes_to_default() {
-    let (backend_url, _h1) = start_echo_backend().await;
-    let (proxy_url, _state, _h2) = start_proxy(&single_backend_config(&backend_url)).await;
+    let (provider_url, _h1) = start_echo_provider().await;
+    let (proxy_url, _state, _h2) = start_proxy(&single_provider_config(&provider_url)).await;
 
     let resp: serde_json::Value = client()
         .get(format!("{proxy_url}/v1/models"))

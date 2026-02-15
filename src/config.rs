@@ -7,8 +7,8 @@ use serde::Deserialize;
 pub struct Config {
     #[serde(default)]
     pub server: ServerConfig,
-    #[serde(default)]
-    pub backends: HashMap<String, BackendConfig>,
+    #[serde(default, rename = "provider")]
+    pub providers: HashMap<String, ProviderConfig>,
     #[serde(default)]
     pub routes: Vec<RouteConfig>,
     #[serde(default)]
@@ -95,7 +95,7 @@ fn default_max_body_size() -> usize {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BackendConfig {
+pub struct ProviderConfig {
     pub url: String,
     #[serde(default)]
     pub strip_auth: bool,
@@ -107,25 +107,25 @@ pub struct BackendConfig {
 #[derive(Debug, Deserialize)]
 pub struct RouteConfig {
     pub pattern: String,
-    pub backend: String,
+    pub provider: String,
     pub model: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DefaultRoute {
-    #[serde(default = "default_backend")]
-    pub backend: String,
+    #[serde(default = "default_provider")]
+    pub provider: String,
 }
 
 impl Default for DefaultRoute {
     fn default() -> Self {
         Self {
-            backend: default_backend(),
+            provider: default_provider(),
         }
     }
 }
 
-fn default_backend() -> String {
+fn default_provider() -> String {
     "anthropic".to_string()
 }
 
@@ -143,22 +143,22 @@ mod tests {
                 [server]
                 host = "0.0.0.0"
                 port = 8080
-                [backends.anthropic]
+                [provider.anthropic]
                 url = "https://api.anthropic.com"
-                [backends.ollama]
+                [provider.ollama]
                 url = "http://localhost:11434"
                 strip_auth = true
                 api_key = "ollama"
                 stub_count_tokens = true
                 [[routes]]
                 pattern = "opus"
-                backend = "anthropic"
+                provider = "anthropic"
                 [[routes]]
                 pattern = "sonnet"
-                backend = "ollama"
+                provider = "ollama"
                 model = "qwen3:30b"
                 [default]
-                backend = "anthropic"
+                provider = "anthropic"
                 "#,
             ))
             .extract()
@@ -166,16 +166,16 @@ mod tests {
 
         assert_eq!(cfg.server.host, "0.0.0.0");
         assert_eq!(cfg.server.port, 8080);
-        assert_eq!(cfg.backends.len(), 2);
-        assert!(cfg.backends["ollama"].strip_auth);
-        assert_eq!(cfg.backends["ollama"].api_key.as_deref(), Some("ollama"));
-        assert!(cfg.backends["ollama"].stub_count_tokens);
-        assert!(!cfg.backends["anthropic"].strip_auth);
-        assert_eq!(cfg.backends["anthropic"].api_key, None);
+        assert_eq!(cfg.providers.len(), 2);
+        assert!(cfg.providers["ollama"].strip_auth);
+        assert_eq!(cfg.providers["ollama"].api_key.as_deref(), Some("ollama"));
+        assert!(cfg.providers["ollama"].stub_count_tokens);
+        assert!(!cfg.providers["anthropic"].strip_auth);
+        assert_eq!(cfg.providers["anthropic"].api_key, None);
         assert_eq!(cfg.routes.len(), 2);
         assert_eq!(cfg.routes[1].model.as_deref(), Some("qwen3:30b"));
         assert_eq!(cfg.routes[0].model, None);
-        assert_eq!(cfg.default.backend, "anthropic");
+        assert_eq!(cfg.default.provider, "anthropic");
     }
 
     #[test]
@@ -184,13 +184,13 @@ mod tests {
             .merge(Toml::string(
                 r#"
                 [server]
-                [backends.a]
+                [provider.a]
                 url = "http://a"
                 [[routes]]
                 pattern = "x"
-                backend = "a"
+                provider = "a"
                 [default]
-                backend = "a"
+                provider = "a"
                 "#,
             ))
             .extract()
@@ -206,9 +206,9 @@ mod tests {
 
         assert_eq!(cfg.server.host, "127.0.0.1");
         assert_eq!(cfg.server.port, 3100);
-        assert!(cfg.backends.is_empty());
+        assert!(cfg.providers.is_empty());
         assert!(cfg.routes.is_empty());
-        assert_eq!(cfg.default.backend, "anthropic");
+        assert_eq!(cfg.default.provider, "anthropic");
     }
 
     #[test]
@@ -238,17 +238,17 @@ mod tests {
         let cfg: Config = Figment::new()
             .merge(Toml::string(
                 r#"
-                [backends.anthropic]
+                [provider.anthropic]
                 url = "https://api.anthropic.com"
                 [default]
-                backend = "anthropic"
+                provider = "anthropic"
                 "#,
             ))
             .extract()
             .unwrap();
 
         assert!(cfg.routes.is_empty());
-        assert_eq!(cfg.backends.len(), 1);
+        assert_eq!(cfg.providers.len(), 1);
     }
 
     #[test]
@@ -257,21 +257,21 @@ mod tests {
             .merge(Toml::string(
                 r#"
                 [server]
-                [backends.a]
+                [provider.a]
                 url = "http://a"
                 [[routes]]
                 pattern = "x"
-                backend = "a"
+                provider = "a"
                 [default]
-                backend = "a"
+                provider = "a"
                 "#,
             ))
             .extract()
             .unwrap();
 
-        assert!(!cfg.backends["a"].strip_auth);
-        assert!(!cfg.backends["a"].stub_count_tokens);
-        assert_eq!(cfg.backends["a"].api_key, None);
+        assert!(!cfg.providers["a"].strip_auth);
+        assert!(!cfg.providers["a"].stub_count_tokens);
+        assert_eq!(cfg.providers["a"].api_key, None);
     }
 
     #[test]

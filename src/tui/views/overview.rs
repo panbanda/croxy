@@ -279,7 +279,7 @@ fn draw_live_log(
     scroll: usize,
 ) {
     let header = Row::new(vec![
-        "Time", "Model", "Backend", "Status", "Duration", "In/Out",
+        "Time", "Model", "Provider", "Status", "Duration", "In/Out",
     ])
     .style(Style::default().add_modifier(Modifier::BOLD))
     .bottom_margin(0);
@@ -306,7 +306,7 @@ fn draw_live_log(
                 )
                 .style(Style::default().fg(Color::DarkGray)),
                 Cell::from(r.model.as_str()),
-                Cell::from(r.backend.as_str()).style(Style::default().fg(Color::DarkGray)),
+                Cell::from(r.provider.as_str()).style(Style::default().fg(Color::DarkGray)),
                 Cell::from(r.status.to_string()).style(status_style),
                 Cell::from(format_duration(r.duration)).style(Style::default().fg(Color::White)),
                 Cell::from(Line::from(vec![

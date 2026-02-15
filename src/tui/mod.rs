@@ -14,20 +14,20 @@ use crate::metrics::MetricsStore;
 pub enum Tab {
     Overview,
     Models,
-    Backends,
+    Providers,
     Errors,
 }
 
 impl Tab {
     fn titles() -> Vec<&'static str> {
-        vec!["Overview [1]", "Models [2]", "Backends [3]", "Errors [4]"]
+        vec!["Overview [1]", "Models [2]", "Providers [3]", "Errors [4]"]
     }
 
     fn index(self) -> usize {
         match self {
             Tab::Overview => 0,
             Tab::Models => 1,
-            Tab::Backends => 2,
+            Tab::Providers => 2,
             Tab::Errors => 3,
         }
     }
@@ -77,7 +77,7 @@ impl App {
                 self.scroll_offset = 0;
             }
             KeyCode::Char('3') => {
-                self.active_tab = Tab::Backends;
+                self.active_tab = Tab::Providers;
                 self.scroll_offset = 0;
             }
             KeyCode::Char('4') => {
@@ -87,8 +87,8 @@ impl App {
             KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
                 self.active_tab = match self.active_tab {
                     Tab::Overview => Tab::Models,
-                    Tab::Models => Tab::Backends,
-                    Tab::Backends => Tab::Errors,
+                    Tab::Models => Tab::Providers,
+                    Tab::Providers => Tab::Errors,
                     Tab::Errors => Tab::Overview,
                 };
                 self.scroll_offset = 0;
@@ -97,8 +97,8 @@ impl App {
                 self.active_tab = match self.active_tab {
                     Tab::Overview => Tab::Errors,
                     Tab::Models => Tab::Overview,
-                    Tab::Backends => Tab::Models,
-                    Tab::Errors => Tab::Backends,
+                    Tab::Providers => Tab::Models,
+                    Tab::Errors => Tab::Providers,
                 };
                 self.scroll_offset = 0;
             }
@@ -157,8 +157,8 @@ impl App {
             Tab::Models => {
                 views::models::draw(frame, content_area, &self.metrics, self.scroll_offset)
             }
-            Tab::Backends => {
-                views::backends::draw(frame, content_area, &self.metrics, self.scroll_offset)
+            Tab::Providers => {
+                views::providers::draw(frame, content_area, &self.metrics, self.scroll_offset)
             }
             Tab::Errors => {
                 views::errors::draw(frame, content_area, &self.metrics, self.scroll_offset)
@@ -273,7 +273,7 @@ mod tests {
         let mut app = make_app();
         for (ch, tab) in [
             ('2', Tab::Models),
-            ('3', Tab::Backends),
+            ('3', Tab::Providers),
             ('4', Tab::Errors),
             ('1', Tab::Overview),
         ] {
@@ -299,7 +299,7 @@ mod tests {
     fn tab_cycles_through_tabs() {
         assert_tab_cycle(
             KeyCode::Tab,
-            &[Tab::Models, Tab::Backends, Tab::Errors, Tab::Overview],
+            &[Tab::Models, Tab::Providers, Tab::Errors, Tab::Overview],
         );
     }
 
@@ -329,7 +329,7 @@ mod tests {
     fn right_arrow_cycles_forward() {
         assert_tab_cycle(
             KeyCode::Right,
-            &[Tab::Models, Tab::Backends, Tab::Errors, Tab::Overview],
+            &[Tab::Models, Tab::Providers, Tab::Errors, Tab::Overview],
         );
     }
 
@@ -337,7 +337,7 @@ mod tests {
     fn left_arrow_cycles_backward() {
         assert_tab_cycle(
             KeyCode::Left,
-            &[Tab::Errors, Tab::Backends, Tab::Models, Tab::Overview],
+            &[Tab::Errors, Tab::Providers, Tab::Models, Tab::Overview],
         );
     }
 

@@ -11,7 +11,7 @@ pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: 
     let mut errors: Vec<_> = snap.iter().filter(|r| r.status >= 400).collect();
     errors.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-    let header = Row::new(vec!["Time", "Model", "Backend", "Status", "Error"])
+    let header = Row::new(vec!["Time", "Model", "Provider", "Status", "Error"])
         .style(Style::default().add_modifier(Modifier::BOLD));
 
     let rows: Vec<Row> = errors
@@ -30,7 +30,7 @@ pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: 
             Row::new(vec![
                 Cell::from(format!("{:.0?} ago", r.timestamp.elapsed())),
                 Cell::from(r.model.as_str()),
-                Cell::from(r.backend.as_str()),
+                Cell::from(r.provider.as_str()),
                 Cell::from(r.status.to_string()).style(Style::default().fg(Color::Red)),
                 Cell::from(error_preview),
             ])

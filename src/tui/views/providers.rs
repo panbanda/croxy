@@ -8,10 +8,10 @@ use crate::metrics::MetricsStore;
 
 pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: usize) {
     let snap = metrics.snapshot();
-    let groups = MetricsStore::group_by(&snap, |r| r.backend.clone());
+    let groups = MetricsStore::group_by(&snap, |r| r.provider.clone());
 
     let header = Row::new(vec![
-        "Backend", "Reqs", "In", "Out", "Avg/Req", "P50", "P95", "Errs",
+        "Provider", "Reqs", "In", "Out", "Avg/Req", "P50", "P95", "Errs",
     ])
     .style(Style::default().add_modifier(Modifier::BOLD));
 
@@ -63,7 +63,7 @@ pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: 
         ],
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title(" Backends "));
+    .block(Block::default().borders(Borders::ALL).title(" Providers "));
 
     frame.render_widget(table, area);
 }
