@@ -15,6 +15,7 @@ use crate::metrics_log::rotated_path;
 struct LogEntry {
     timestamp: DateTime<Utc>,
     model: String,
+    #[serde(alias = "backend")]
     provider: String,
     status: u16,
     duration_ms: u64,
@@ -182,6 +183,16 @@ mod tests {
     fn parse_missing_fields() {
         let line = r#"{"timestamp":"2025-01-01T00:00:00Z","model":"opus"}"#;
         assert!(parse_log_entry(line).is_none());
+    }
+
+    #[test]
+    fn parse_legacy_backend_key() {
+        let ts = recent_timestamp();
+        let line = format!(
+            r#"{{"timestamp":"{ts}","model":"claude-opus-4-6","backend":"anthropic","status":200,"duration_ms":100,"input_tokens":50,"output_tokens":75,"error":null}}"#
+        );
+        let record = parse_log_entry(&line).expect("should parse legacy format");
+        assert_eq!(record.provider, "anthropic");
     }
 
     #[test]
