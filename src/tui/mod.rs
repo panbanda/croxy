@@ -68,10 +68,22 @@ impl App {
             KeyCode::Char('d') if !self.attached => {
                 self.exit_mode = Some(ExitMode::Detach);
             }
-            KeyCode::Char('1') => self.active_tab = Tab::Overview,
-            KeyCode::Char('2') => self.active_tab = Tab::Models,
-            KeyCode::Char('3') => self.active_tab = Tab::Backends,
-            KeyCode::Char('4') => self.active_tab = Tab::Errors,
+            KeyCode::Char('1') => {
+                self.active_tab = Tab::Overview;
+                self.scroll_offset = 0;
+            }
+            KeyCode::Char('2') => {
+                self.active_tab = Tab::Models;
+                self.scroll_offset = 0;
+            }
+            KeyCode::Char('3') => {
+                self.active_tab = Tab::Backends;
+                self.scroll_offset = 0;
+            }
+            KeyCode::Char('4') => {
+                self.active_tab = Tab::Errors;
+                self.scroll_offset = 0;
+            }
             KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
                 self.active_tab = match self.active_tab {
                     Tab::Overview => Tab::Models,
@@ -268,6 +280,19 @@ mod tests {
             app.handle_key(key(KeyCode::Char(ch)));
             assert_eq!(app.active_tab, tab);
         }
+    }
+
+    #[test]
+    fn number_keys_reset_scroll() {
+        let mut app = make_app();
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(key(KeyCode::Char('j')));
+        assert_eq!(app.scroll_offset, 2);
+        app.handle_key(key(KeyCode::Char('2')));
+        assert_eq!(app.scroll_offset, 0);
+        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(key(KeyCode::Char('1')));
+        assert_eq!(app.scroll_offset, 0);
     }
 
     #[test]

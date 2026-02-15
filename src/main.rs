@@ -198,7 +198,12 @@ backend = "anthropic"
 
 fn cmd_shellenv(config_path: &PathBuf) {
     let config = load_config(config_path);
-    let addr = format!("{}:{}", config.server.host, config.server.port);
+    let host = match config.server.host.as_str() {
+        "0.0.0.0" => "127.0.0.1",
+        "::" => "::1",
+        other => other,
+    };
+    let addr = format!("{host}:{}", config.server.port);
 
     if TcpStream::connect(&addr).is_ok() {
         println!("export ANTHROPIC_BASE_URL=http://{addr}");

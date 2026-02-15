@@ -111,7 +111,10 @@ fn parse_token_header(headers: &reqwest::header::HeaderMap, name: &str) -> Optio
 
 fn log_outgoing_headers(headers: &HeaderMap) {
     for (key, value) in headers {
-        if key.as_str() == "x-api-key" {
+        if matches!(
+            key.as_str(),
+            "x-api-key" | "authorization" | "proxy-authorization" | "cookie"
+        ) {
             debug!(header = %key, value = "[REDACTED]", "outgoing header");
         } else {
             debug!(header = %key, value = ?value, "outgoing header");
@@ -275,7 +278,7 @@ pub async fn handle_request(
     debug!(url = %url, "forwarding to backend");
     log_outgoing_headers(&headers);
     if !final_body.is_empty() {
-        debug!(body = %String::from_utf8_lossy(&final_body), "outgoing body");
+        debug!(body_bytes = final_body.len(), "outgoing body");
     }
 
     let mut upstream_response = state

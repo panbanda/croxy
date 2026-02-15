@@ -168,9 +168,11 @@ impl MetricsStore {
         let now = Instant::now();
         let mut buckets = vec![0u64; num_buckets];
         for record in records {
-            let bucket_index = now.duration_since(record.timestamp).as_secs() / 60;
-            if (bucket_index as usize) < num_buckets {
-                buckets[num_buckets - 1 - bucket_index as usize] += value_fn(record);
+            if let Some(elapsed) = now.checked_duration_since(record.timestamp) {
+                let bucket_index = elapsed.as_secs() / 60;
+                if (bucket_index as usize) < num_buckets {
+                    buckets[num_buckets - 1 - bucket_index as usize] += value_fn(record);
+                }
             }
         }
         buckets
