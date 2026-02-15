@@ -302,7 +302,10 @@ pub async fn handle_request(
         .await
         .map_err(|e| {
             error!(url = %url, error = %e, "provider request failed");
-            (StatusCode::BAD_GATEWAY, format!("provider unreachable: {e}"))
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("provider unreachable: {e}"),
+            )
         })?;
 
     let status = StatusCode::from_u16(upstream_response.status().as_u16())

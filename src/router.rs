@@ -55,10 +55,7 @@ impl Router {
                 .map_err(|e| format!("invalid regex '{}': {}", route.pattern, e))?;
 
             let provider = config.providers.get(&route.provider).ok_or_else(|| {
-                format!(
-                    "route provider '{}' not found in providers",
-                    route.provider
-                )
+                format!("route provider '{}' not found in providers", route.provider)
             })?;
 
             routes.push(CompiledRoute {

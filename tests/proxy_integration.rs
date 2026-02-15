@@ -350,8 +350,7 @@ async fn records_metrics_for_proxied_request() {
 
 #[tokio::test]
 async fn returns_502_when_provider_unreachable() {
-    let (proxy_url, _state, _h) =
-        start_proxy(&single_provider_config("http://127.0.0.1:1")).await;
+    let (proxy_url, _state, _h) = start_proxy(&single_provider_config("http://127.0.0.1:1")).await;
 
     let resp = client()
         .post(format!("{proxy_url}/v1/messages"))
