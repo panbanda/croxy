@@ -64,10 +64,11 @@ fn build_forwarding_headers(
     }
 
     if let Some(ref api_key) = route.api_key {
-        headers.insert(
-            http::header::HeaderName::from_static("x-api-key"),
-            HeaderValue::from_str(api_key).expect("api_key is valid header value"),
-        );
+        if let Ok(value) = HeaderValue::from_str(api_key) {
+            headers.insert(http::header::HeaderName::from_static("x-api-key"), value);
+        } else {
+            tracing::warn!("api_key contains invalid header characters, skipping");
+        }
     }
 
     if body_len > 0 {
