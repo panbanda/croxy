@@ -113,29 +113,17 @@ fn draw_latency(frame: &mut Frame, area: Rect, snap: &[crate::metrics::RequestRe
     let lines = vec![
         Line::from(vec![
             Span::raw(" Avg: "),
-            Span::styled(
-                format_duration(avg),
-                Style::default().fg(Color::White),
-            ),
+            Span::styled(format_duration(avg), Style::default().fg(Color::White)),
         ]),
         Line::from(vec![
             Span::raw(" P50: "),
-            Span::styled(
-                format_duration(p50),
-                Style::default().fg(Color::Green),
-            ),
+            Span::styled(format_duration(p50), Style::default().fg(Color::Green)),
             Span::raw("  P95: "),
-            Span::styled(
-                format_duration(p95),
-                Style::default().fg(Color::Yellow),
-            ),
+            Span::styled(format_duration(p95), Style::default().fg(Color::Yellow)),
         ]),
         Line::from(vec![
             Span::raw(" P99: "),
-            Span::styled(
-                format_duration(p99),
-                Style::default().fg(Color::Red),
-            ),
+            Span::styled(format_duration(p99), Style::default().fg(Color::Red)),
         ]),
     ];
     let widget =
