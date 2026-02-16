@@ -111,6 +111,10 @@ impl MetricsStore {
             .collect()
     }
 
+    pub fn window(&self) -> Duration {
+        self.window
+    }
+
     pub fn window_minutes(&self) -> u64 {
         self.window.as_secs() / 60
     }

@@ -15,6 +15,33 @@ pub struct Config {
     pub default: DefaultRoute,
     #[serde(default)]
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub retention: RetentionConfig,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RetentionConfig {
+    #[serde(default = "default_retention_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_retention_minutes")]
+    pub minutes: u64,
+}
+
+impl Default for RetentionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_retention_enabled(),
+            minutes: default_retention_minutes(),
+        }
+    }
+}
+
+fn default_retention_enabled() -> bool {
+    true
+}
+
+fn default_retention_minutes() -> u64 {
+    60
 }
 
 #[derive(Debug, Default, Deserialize)]
