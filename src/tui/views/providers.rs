@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
-use super::overview::format_tokens;
+use super::format_tokens;
 use crate::metrics::MetricsStore;
 
 pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: usize) {
@@ -66,4 +66,5 @@ pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: 
     .block(Block::default().borders(Borders::ALL).title(" Providers "));
 
     frame.render_widget(table, area);
+    super::render_scrollbar(frame, area, names.len(), scroll);
 }

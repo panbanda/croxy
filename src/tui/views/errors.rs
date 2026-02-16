@@ -3,15 +3,17 @@ use std::sync::Arc;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
+use super::format_time_ago;
 use crate::metrics::MetricsStore;
 
 pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: usize) {
     let snap = metrics.snapshot();
 
+    let now = std::time::Instant::now();
     let mut errors: Vec<_> = snap.iter().filter(|r| r.status >= 400).collect();
     errors.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-    let header = Row::new(vec!["Time", "Model", "Provider", "Status", "Error"])
+    let header = Row::new(vec!["Age", "Model", "Provider", "Status", "Error"])
         .style(Style::default().add_modifier(Modifier::BOLD));
 
     let rows: Vec<Row> = errors
@@ -28,7 +30,7 @@ pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: 
                 .collect::<String>()
                 .replace('\n', " ");
             Row::new(vec![
-                Cell::from(format!("{:.0?} ago", r.timestamp.elapsed())),
+                Cell::from(format_time_ago(now.duration_since(r.timestamp))),
                 Cell::from(r.model.as_str()),
                 Cell::from(r.provider.as_str()),
                 Cell::from(r.status.to_string()).style(Style::default().fg(Color::Red)),
@@ -56,4 +58,5 @@ pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: 
     );
 
     frame.render_widget(table, area);
+    super::render_scrollbar(frame, area, count, scroll);
 }

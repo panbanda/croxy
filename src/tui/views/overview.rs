@@ -6,17 +6,8 @@ use ratatui::widgets::{
     Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table,
 };
 
+use super::{format_time_ago, format_tokens};
 use crate::metrics::MetricsStore;
-
-pub fn format_tokens(n: u64) -> String {
-    if n >= 999_950 {
-        format!("{:.1}M", n as f64 / 1_000_000.0)
-    } else if n >= 1_000 {
-        format!("{:.1}K", n as f64 / 1_000.0)
-    } else {
-        n.to_string()
-    }
-}
 
 fn time_axis_labels(num_buckets: usize) -> Vec<String> {
     vec![
@@ -220,42 +211,8 @@ fn draw_stats_row(frame: &mut Frame, area: Rect, snap: &[crate::metrics::Request
 }
 
 fn draw_token_usage(frame: &mut Frame, area: Rect, snap: &[crate::metrics::RequestRecord]) {
-    let groups = MetricsStore::group_by(snap, |r| r.model.clone());
-    let mut entries: Vec<(&String, u64, u64)> = groups
-        .iter()
-        .map(|(model, records)| {
-            let input: u64 = records.iter().map(|r| r.input_tokens).sum();
-            let output: u64 = records.iter().map(|r| r.output_tokens).sum();
-            (model, input, output)
-        })
-        .collect();
-    entries.sort_by(|(a, _, _), (b, _, _)| a.cmp(b));
-    let lines: Vec<Line> = if entries.is_empty() {
-        vec![Line::from(Span::styled(
-            " No traffic yet",
-            Style::default().fg(Color::DarkGray),
-        ))]
-    } else {
-        entries
-            .iter()
-            .map(|(model, input, output)| {
-                Line::from(vec![
-                    Span::styled(format!(" {model}: "), Style::default().fg(Color::White)),
-                    Span::styled("in ", Style::default().fg(Color::Cyan)),
-                    Span::styled(format_tokens(*input), Style::default().fg(Color::Cyan)),
-                    Span::raw("  "),
-                    Span::styled("out ", Style::default().fg(Color::Green)),
-                    Span::styled(format_tokens(*output), Style::default().fg(Color::Green)),
-                ])
-            })
-            .collect()
-    };
-    let widget = Paragraph::new(lines).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Token Usage "),
-    );
-    frame.render_widget(widget, area);
+    let (table, _) = super::models::model_table(snap, " Token Usage ".to_string(), 0);
+    frame.render_widget(table, area);
 }
 
 fn format_duration(dur: std::time::Duration) -> String {
@@ -272,6 +229,23 @@ fn format_duration(dur: std::time::Duration) -> String {
     }
 }
 
+fn duration_style(
+    dur: std::time::Duration,
+    p50: std::time::Duration,
+    p95: std::time::Duration,
+    p99: std::time::Duration,
+) -> Style {
+    if dur >= p99 {
+        Style::default().fg(Color::Red)
+    } else if dur >= p95 {
+        Style::default().fg(Color::Yellow)
+    } else if dur >= p50 {
+        Style::default().fg(Color::White)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    }
+}
+
 fn draw_live_log(
     frame: &mut Frame,
     area: Rect,
@@ -279,13 +253,21 @@ fn draw_live_log(
     scroll: usize,
 ) {
     let header = Row::new(vec![
-        "Time", "Model", "Provider", "Status", "Duration", "In/Out",
+        "Age", "Model", "Provider", "Status", "Duration", "In/Out",
     ])
     .style(Style::default().add_modifier(Modifier::BOLD))
     .bottom_margin(0);
 
+    let now = std::time::Instant::now();
+    let durations: Vec<std::time::Duration> = snap.iter().map(|r| r.duration).collect();
+    let p50 = MetricsStore::duration_percentile(&durations, 50);
+    let p95 = MetricsStore::duration_percentile(&durations, 95);
+    let p99 = MetricsStore::duration_percentile(&durations, 99);
+
     let mut sorted: Vec<_> = snap.iter().collect();
     sorted.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+    let total_rows = sorted.len();
 
     let rows: Vec<Row> = sorted
         .iter()
@@ -297,18 +279,14 @@ fn draw_live_log(
             } else {
                 Style::default().fg(Color::Green)
             };
+            let age = now.duration_since(r.timestamp);
             Row::new(vec![
-                Cell::from(
-                    r.wallclock
-                        .with_timezone(&chrono::Local)
-                        .format("%H:%M:%S")
-                        .to_string(),
-                )
-                .style(Style::default().fg(Color::DarkGray)),
+                Cell::from(format_time_ago(age)).style(Style::default().fg(Color::DarkGray)),
                 Cell::from(r.model.as_str()),
                 Cell::from(r.provider.as_str()).style(Style::default().fg(Color::DarkGray)),
                 Cell::from(r.status.to_string()).style(status_style),
-                Cell::from(format_duration(r.duration)).style(Style::default().fg(Color::White)),
+                Cell::from(format_duration(r.duration))
+                    .style(duration_style(r.duration, p50, p95, p99)),
                 Cell::from(Line::from(vec![
                     Span::styled(
                         format_tokens(r.input_tokens),
@@ -339,6 +317,7 @@ fn draw_live_log(
     .block(Block::default().borders(Borders::ALL).title(" Live Log "));
 
     frame.render_widget(table, area);
+    super::render_scrollbar(frame, area, total_rows, scroll);
 }
 
 pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: usize) {
@@ -359,19 +338,4 @@ pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: 
     draw_stats_row(frame, chunks[1], &snap);
     draw_token_usage(frame, chunks[2], &snap);
     draw_live_log(frame, chunks[3], &snap, scroll);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn format_tokens_thresholds() {
-        assert_eq!(format_tokens(0), "0");
-        assert_eq!(format_tokens(999), "999");
-        assert_eq!(format_tokens(1000), "1.0K");
-        assert_eq!(format_tokens(999_949), "999.9K");
-        assert_eq!(format_tokens(999_950), "1.0M");
-        assert_eq!(format_tokens(1_500_000), "1.5M");
-    }
 }
