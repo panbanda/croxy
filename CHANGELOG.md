@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0](https://github.com/panbanda/croxy/compare/croxy-v1.1.0...croxy-v2.0.0) (2026-02-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **config:** The --retention CLI flag has been removed. Configure retention via [retention] in config.toml instead.
+
+### Features
+
+* **config:** move retention from CLI flag to config file ([c284cfa](https://github.com/panbanda/croxy/commit/c284cfa194945db27bc607bd7cc2f34f929d3f43))
+* **config:** move retention from CLI flag to config file ([4d3e407](https://github.com/panbanda/croxy/commit/4d3e4071b2ed3a53c4e8dc764f47f08de4c08ce2))
+
+
+### Bug Fixes
+
+* guard retention overflow and add missing tests ([86186e0](https://github.com/panbanda/croxy/commit/86186e0033d5c3adc4b8b490623bf869ba5085f1))
+
 ## [1.1.0](https://github.com/panbanda/croxy/compare/croxy-v1.0.2...croxy-v1.1.0) (2026-02-16)
 
 
