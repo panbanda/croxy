@@ -331,4 +331,29 @@ mod tests {
         assert_eq!(cfg.logging.metrics.max_size_mb, 100);
         assert_eq!(cfg.logging.metrics.max_files, 10);
     }
+
+    #[test]
+    fn retention_defaults_when_omitted() {
+        let cfg: Config = Figment::new().merge(Toml::string("")).extract().unwrap();
+
+        assert!(cfg.retention.enabled);
+        assert_eq!(cfg.retention.minutes, 60);
+    }
+
+    #[test]
+    fn retention_config_parses() {
+        let cfg: Config = Figment::new()
+            .merge(Toml::string(
+                r#"
+                [retention]
+                enabled = false
+                minutes = 120
+                "#,
+            ))
+            .extract()
+            .unwrap();
+
+        assert!(!cfg.retention.enabled);
+        assert_eq!(cfg.retention.minutes, 120);
+    }
 }

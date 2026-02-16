@@ -232,6 +232,12 @@ mod tests {
     }
 
     #[test]
+    fn window_returns_configured_duration() {
+        let store = MetricsStore::new(Duration::from_secs(3600));
+        assert_eq!(store.window(), Duration::from_secs(3600));
+    }
+
+    #[test]
     fn records_and_retrieves() {
         let store = MetricsStore::new(Duration::from_secs(60));
         store.record(sample_record());

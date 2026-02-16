@@ -381,7 +381,7 @@ fn init_tracing(use_tui: bool, verbose: bool) {
 
 fn retention_duration(config: &Config) -> std::time::Duration {
     if config.retention.enabled {
-        std::time::Duration::from_secs(config.retention.minutes * 60)
+        std::time::Duration::from_secs(config.retention.minutes.saturating_mul(60))
     } else {
         std::time::Duration::from_secs(365 * 24 * 60 * 60)
     }
