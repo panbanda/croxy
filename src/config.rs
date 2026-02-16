@@ -15,6 +15,33 @@ pub struct Config {
     pub default: DefaultRoute,
     #[serde(default)]
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub retention: RetentionConfig,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RetentionConfig {
+    #[serde(default = "default_retention_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_retention_minutes")]
+    pub minutes: u64,
+}
+
+impl Default for RetentionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_retention_enabled(),
+            minutes: default_retention_minutes(),
+        }
+    }
+}
+
+fn default_retention_enabled() -> bool {
+    true
+}
+
+fn default_retention_minutes() -> u64 {
+    60
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -303,5 +330,30 @@ mod tests {
         assert_eq!(cfg.logging.metrics.path, "/tmp/test.jsonl");
         assert_eq!(cfg.logging.metrics.max_size_mb, 100);
         assert_eq!(cfg.logging.metrics.max_files, 10);
+    }
+
+    #[test]
+    fn retention_defaults_when_omitted() {
+        let cfg: Config = Figment::new().merge(Toml::string("")).extract().unwrap();
+
+        assert!(cfg.retention.enabled);
+        assert_eq!(cfg.retention.minutes, 60);
+    }
+
+    #[test]
+    fn retention_config_parses() {
+        let cfg: Config = Figment::new()
+            .merge(Toml::string(
+                r#"
+                [retention]
+                enabled = false
+                minutes = 120
+                "#,
+            ))
+            .extract()
+            .unwrap();
+
+        assert!(!cfg.retention.enabled);
+        assert_eq!(cfg.retention.minutes, 120);
     }
 }

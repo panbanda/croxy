@@ -111,6 +111,10 @@ impl MetricsStore {
             .collect()
     }
 
+    pub fn window(&self) -> Duration {
+        self.window
+    }
+
     pub fn window_minutes(&self) -> u64 {
         self.window.as_secs() / 60
     }
@@ -225,6 +229,12 @@ mod tests {
             output_tokens: 200,
             error_body: None,
         }
+    }
+
+    #[test]
+    fn window_returns_configured_duration() {
+        let store = MetricsStore::new(Duration::from_secs(3600));
+        assert_eq!(store.window(), Duration::from_secs(3600));
     }
 
     #[test]

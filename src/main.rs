@@ -39,10 +39,6 @@ struct Cli {
     #[arg(short, long, global = true)]
     verbose: bool,
 
-    /// Metrics retention window in minutes
-    #[arg(long, global = true, default_value = "60", value_name = "MINUTES")]
-    retention: u64,
-
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -184,6 +180,10 @@ model = "qwen2.5-coder:32b"
 [default]
 provider = "anthropic"
 
+# [retention]
+# enabled = true
+# minutes = 60
+
 # [logging.metrics]
 # enabled = true
 # path = "~/.config/croxy/logs/metrics.jsonl"
@@ -213,7 +213,7 @@ fn cmd_shellenv(config_path: &PathBuf) {
     }
 }
 
-fn detach(config_path: &PathBuf, verbose: bool, retention: u64) {
+fn detach(config_path: &PathBuf, verbose: bool) {
     if let Some(pid) = read_pid() {
         if pid_is_alive(pid) {
             eprintln!("croxy is already running (pid {pid})");
@@ -254,7 +254,6 @@ fn detach(config_path: &PathBuf, verbose: bool, retention: u64) {
 
     let mut cmd = Command::new(exe);
     cmd.arg("--config").arg(config_path);
-    cmd.arg("--retention").arg(retention.to_string());
     if verbose {
         cmd.arg("--verbose");
     }
@@ -313,7 +312,7 @@ fn detach(config_path: &PathBuf, verbose: bool, retention: u64) {
     }
 }
 
-fn run_attached(config_path: &PathBuf, retention_minutes: u64) {
+fn run_attached(config_path: &PathBuf) {
     let config = load_config(config_path);
 
     if !config.logging.metrics.enabled {
@@ -321,10 +320,10 @@ fn run_attached(config_path: &PathBuf, retention_minutes: u64) {
         std::process::exit(1);
     }
 
-    let retention = std::time::Duration::from_secs(retention_minutes * 60);
+    let retention = retention_duration(&config);
     let metrics = Arc::new(MetricsStore::new(retention));
 
-    attach::load_history(&config.logging.metrics, &metrics, retention);
+    attach::load_history(&config.logging.metrics, &metrics);
 
     let log_path = PathBuf::from(&config.logging.metrics.path);
     let stop = Arc::new(AtomicBool::new(false));
@@ -377,6 +376,14 @@ fn init_tracing(use_tui: bool, verbose: bool) {
         tracing_subscriber::fmt()
             .with_env_filter(env_filter())
             .init();
+    }
+}
+
+fn retention_duration(config: &Config) -> std::time::Duration {
+    if config.retention.enabled {
+        std::time::Duration::from_secs(config.retention.minutes.saturating_mul(60))
+    } else {
+        std::time::Duration::from_secs(365 * 24 * 60 * 60)
     }
 }
 
@@ -478,7 +485,7 @@ async fn main() {
     let config_path = cli.config.unwrap_or_else(default_config_path);
 
     match cli.command {
-        Some(Commands::Start) => return detach(&config_path, cli.verbose, cli.retention),
+        Some(Commands::Start) => return detach(&config_path, cli.verbose),
         Some(Commands::Stop) => return cmd_stop(),
         Some(Commands::Init) => return cmd_init(),
         Some(Commands::Shellenv) => return cmd_shellenv(&config_path),
@@ -501,7 +508,7 @@ async fn main() {
         && let Some(pid) = read_pid()
         && pid_is_alive(pid)
     {
-        return run_attached(&config_path, cli.retention);
+        return run_attached(&config_path);
     }
 
     init_tracing(use_tui, cli.verbose);
@@ -512,7 +519,7 @@ async fn main() {
         std::process::exit(1);
     });
 
-    let retention = std::time::Duration::from_secs(cli.retention * 60);
+    let retention = retention_duration(&config);
     let metrics = create_metrics(&config, retention);
 
     let state = Arc::new(AppState {
