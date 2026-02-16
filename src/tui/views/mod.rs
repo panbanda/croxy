@@ -36,14 +36,20 @@ pub fn format_time_ago(elapsed: std::time::Duration) -> String {
 /// Formats a duration for display: raw ms below 1s, seconds with decimals
 /// below 1m, minutes+seconds above.
 pub fn format_duration(dur: std::time::Duration) -> String {
-    if dur.as_secs() >= 60 {
-        format!(
-            "{}m{:.1}s",
-            dur.as_secs() / 60,
-            (dur.as_secs() % 60) as f64 + dur.subsec_millis() as f64 / 1000.0
-        )
-    } else if dur.as_secs() >= 1 {
-        format!("{:.2}s", dur.as_secs_f64())
+    let total_secs = dur.as_secs_f64();
+    if total_secs >= 60.0 {
+        let mut minutes = (total_secs / 60.0).floor();
+        let mut seconds = total_secs - minutes * 60.0;
+        // Clamp to avoid "1m60.0s" from rounding
+        if seconds >= 59.95 {
+            minutes += 1.0;
+            seconds = 0.0;
+        }
+        format!("{}m{:.1}s", minutes as u64, seconds)
+    } else if total_secs >= 1.0 {
+        // Truncate to avoid "60.00s" from rounding
+        let secs = (total_secs * 100.0).floor() / 100.0;
+        format!("{:.2}s", secs)
     } else {
         format!("{}ms", dur.as_millis())
     }
@@ -148,7 +154,7 @@ mod tests {
         );
         assert_eq!(
             format_duration(std::time::Duration::from_millis(59999)),
-            "60.00s"
+            "59.99s"
         );
     }
 
