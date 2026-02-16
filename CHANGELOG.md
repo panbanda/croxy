@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/panbanda/croxy/compare/croxy-v1.0.2...croxy-v1.1.0) (2026-02-16)
+
+
+### Features
+
+* **tui:** enhance dashboard with scrollbars, time ago, and duration colors ([7d520fc](https://github.com/panbanda/croxy/commit/7d520fc6ecfbdeb6ba8bcc686990d8f0ecc7045f))
+* **tui:** enhance dashboard with scrollbars, time ago, and duration colors ([43d99f9](https://github.com/panbanda/croxy/commit/43d99f939d659e71f9e61a5da45a165238a3c411))
+
 ## [1.0.2](https://github.com/panbanda/croxy/compare/croxy-v1.0.1...croxy-v1.0.2) (2026-02-15)
 
 
