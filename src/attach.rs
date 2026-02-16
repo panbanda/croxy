@@ -44,8 +44,8 @@ pub fn parse_log_entry(line: &str) -> Option<RequestRecord> {
 
 pub fn load_history(config: &MetricsLogConfig, store: &MetricsStore) {
     let base = Path::new(&config.path);
-    let cutoff = Utc::now()
-        - chrono::Duration::from_std(store.window()).unwrap_or(chrono::Duration::zero());
+    let cutoff =
+        Utc::now() - chrono::Duration::from_std(store.window()).unwrap_or(chrono::Duration::zero());
 
     // Read rotated files oldest-first: .max_files, .max_files-1, ..., .1, then current
     let mut paths = Vec::new();
