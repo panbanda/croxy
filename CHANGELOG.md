@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/panbanda/croxy/compare/croxy-v2.0.0...croxy-v2.1.0) (2026-02-16)
+
+
+### Features
+
+* move retention from CLI flag to config file ([#11](https://github.com/panbanda/croxy/issues/11)) ([8e5f21b](https://github.com/panbanda/croxy/commit/8e5f21b1e37c740bf24fd0484c339c24fdb5f097))
+
 ## [2.0.0](https://github.com/panbanda/croxy/compare/croxy-v1.1.0...croxy-v2.0.0) (2026-02-16)
 
 
