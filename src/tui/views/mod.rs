@@ -33,6 +33,22 @@ pub fn format_time_ago(elapsed: std::time::Duration) -> String {
     }
 }
 
+/// Formats a duration for display: raw ms below 1s, seconds with decimals
+/// below 1m, minutes+seconds above.
+pub fn format_duration(dur: std::time::Duration) -> String {
+    if dur.as_secs() >= 60 {
+        format!(
+            "{}m{:.1}s",
+            dur.as_secs() / 60,
+            (dur.as_secs() % 60) as f64 + dur.subsec_millis() as f64 / 1000.0
+        )
+    } else if dur.as_secs() >= 1 {
+        format!("{:.2}s", dur.as_secs_f64())
+    } else {
+        format!("{}ms", dur.as_millis())
+    }
+}
+
 /// Renders a subtle vertical scrollbar when `total_rows` exceeds the visible
 /// area. Accounts for border (top + bottom) and header row = 3 lines of
 /// overhead.
@@ -104,6 +120,51 @@ mod tests {
         assert_eq!(
             format_time_ago(std::time::Duration::from_secs(86399)),
             "23h ago"
+        );
+    }
+
+    #[test]
+    fn format_duration_millis() {
+        assert_eq!(format_duration(std::time::Duration::from_millis(0)), "0ms");
+        assert_eq!(
+            format_duration(std::time::Duration::from_millis(500)),
+            "500ms"
+        );
+        assert_eq!(
+            format_duration(std::time::Duration::from_millis(999)),
+            "999ms"
+        );
+    }
+
+    #[test]
+    fn format_duration_seconds() {
+        assert_eq!(
+            format_duration(std::time::Duration::from_millis(1000)),
+            "1.00s"
+        );
+        assert_eq!(
+            format_duration(std::time::Duration::from_millis(1500)),
+            "1.50s"
+        );
+        assert_eq!(
+            format_duration(std::time::Duration::from_millis(59999)),
+            "60.00s"
+        );
+    }
+
+    #[test]
+    fn format_duration_minutes() {
+        assert_eq!(
+            format_duration(std::time::Duration::from_secs(60)),
+            "1m0.0s"
+        );
+        assert_eq!(
+            format_duration(std::time::Duration::from_millis(304_088)),
+            "5m4.1s"
+        );
+        assert_eq!(
+            format_duration(std::time::Duration::from_secs(3661)),
+            "61m1.0s"
         );
     }
 

@@ -6,7 +6,7 @@ use ratatui::widgets::{
     Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table,
 };
 
-use super::{format_time_ago, format_tokens};
+use super::{format_duration, format_time_ago, format_tokens};
 use crate::metrics::MetricsStore;
 
 fn time_axis_labels(num_buckets: usize) -> Vec<String> {
@@ -114,26 +114,26 @@ fn draw_latency(frame: &mut Frame, area: Rect, snap: &[crate::metrics::RequestRe
         Line::from(vec![
             Span::raw(" Avg: "),
             Span::styled(
-                format!("{}ms", avg.as_millis()),
+                format_duration(avg),
                 Style::default().fg(Color::White),
             ),
         ]),
         Line::from(vec![
             Span::raw(" P50: "),
             Span::styled(
-                format!("{}ms", p50.as_millis()),
+                format_duration(p50),
                 Style::default().fg(Color::Green),
             ),
             Span::raw("  P95: "),
             Span::styled(
-                format!("{}ms", p95.as_millis()),
+                format_duration(p95),
                 Style::default().fg(Color::Yellow),
             ),
         ]),
         Line::from(vec![
             Span::raw(" P99: "),
             Span::styled(
-                format!("{}ms", p99.as_millis()),
+                format_duration(p99),
                 Style::default().fg(Color::Red),
             ),
         ]),
@@ -213,20 +213,6 @@ fn draw_stats_row(frame: &mut Frame, area: Rect, snap: &[crate::metrics::Request
 fn draw_token_usage(frame: &mut Frame, area: Rect, snap: &[crate::metrics::RequestRecord]) {
     let (table, _) = super::models::model_table(snap, " Token Usage ".to_string(), 0);
     frame.render_widget(table, area);
-}
-
-fn format_duration(dur: std::time::Duration) -> String {
-    if dur.as_secs() >= 60 {
-        format!(
-            "{}m{:.1}s",
-            dur.as_secs() / 60,
-            (dur.as_secs() % 60) as f64 + dur.subsec_millis() as f64 / 1000.0
-        )
-    } else if dur.as_secs() >= 1 {
-        format!("{:.2}s", dur.as_secs_f64())
-    } else {
-        format!("{}ms", dur.as_millis())
-    }
 }
 
 fn duration_style(

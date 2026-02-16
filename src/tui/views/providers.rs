@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
-use super::format_tokens;
+use super::{format_duration, format_tokens};
 use crate::metrics::MetricsStore;
 
 pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: usize) {
@@ -42,8 +42,8 @@ pub fn draw(frame: &mut Frame, area: Rect, metrics: &Arc<MetricsStore>, scroll: 
                 Cell::from(format_tokens(output)).style(Style::default().fg(Color::Green)),
                 Cell::from(format_tokens((input + output) / count.max(1)))
                     .style(Style::default().fg(Color::White)),
-                Cell::from(format!("{}ms", p50.as_millis())),
-                Cell::from(format!("{}ms", p95.as_millis())),
+                Cell::from(format_duration(p50)),
+                Cell::from(format_duration(p95)),
                 Cell::from(format_tokens(errors)).style(error_style),
             ])
         })
