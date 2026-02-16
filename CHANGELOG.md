@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/panbanda/croxy/compare/croxy-v2.1.0...croxy-v2.1.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* **tui:** format durations as human-readable values ([#13](https://github.com/panbanda/croxy/issues/13)) ([93386f3](https://github.com/panbanda/croxy/commit/93386f3ea93a972672c4d56231bb26a05ed889b4))
+
 ## [2.1.0](https://github.com/panbanda/croxy/compare/croxy-v2.0.0...croxy-v2.1.0) (2026-02-16)
 
 
