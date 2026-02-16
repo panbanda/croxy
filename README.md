@@ -12,7 +12,7 @@ Croxy sits between your tools and the Anthropic API, giving you real-time visibi
 
 One line in your shell profile (`eval "$(croxy shellenv)"`) and Claude Code, Cursor, or any Anthropic-compatible client automatically routes through croxy. No SDK changes, no code changes, no per-project config.
 
-![Croxy demo](croxy-optimized.gif)
+![Croxy demo](docs/croxy-optimized.gif)
 
 </div>
 
