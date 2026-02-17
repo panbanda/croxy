@@ -262,7 +262,16 @@ pub async fn handle_request(
         (None, String::new())
     };
 
-    let route = state.router.resolve(&model);
+    let messages = body_json
+        .as_ref()
+        .and_then(|j| j.get("messages"))
+        .and_then(|m| m.as_array())
+        .cloned();
+
+    let route = state
+        .router
+        .resolve(&model, messages.as_ref(), &state.client)
+        .await;
 
     if parts.uri.path().contains("/count_tokens") && route.stub_count_tokens {
         debug!(path = %path, "returning stub count_tokens response");

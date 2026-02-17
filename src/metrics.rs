@@ -157,6 +157,7 @@ impl MetricsStore {
             "timestamp": record.wallclock.to_rfc3339(),
             "model": &record.model,
             "provider": &record.provider,
+            "routing_method": record.routing_method.to_string(),
             "status": record.status,
             "duration_ms": record.duration.as_millis() as u64,
             "input_tokens": record.input_tokens,

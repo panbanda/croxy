@@ -1,6 +1,7 @@
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
 
 pub mod attach;
+pub mod auto_router;
 pub mod cli_config;
 pub mod config;
 pub mod metrics;

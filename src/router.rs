@@ -1,6 +1,9 @@
-use regex::Regex;
+use std::collections::HashSet;
 
-use crate::config::Config;
+use regex::Regex;
+use tracing::warn;
+
+use crate::config::{AutoRouterConfig, Config};
 use crate::metrics::RoutingMethod;
 
 pub struct ResolvedRoute {
@@ -13,6 +16,11 @@ pub struct ResolvedRoute {
     pub routing_method: RoutingMethod,
 }
 
+pub struct RouteCandidate {
+    pub name: String,
+    pub description: String,
+}
+
 struct CompiledRoute {
     pattern: Regex,
     provider_name: String,
@@ -23,8 +31,21 @@ struct CompiledRoute {
     stub_count_tokens: bool,
 }
 
+struct AutoRouteEntry {
+    name: String,
+    provider_name: String,
+    provider_url: String,
+    model_rewrite: Option<String>,
+    strip_auth: bool,
+    api_key: Option<String>,
+    stub_count_tokens: bool,
+}
+
 pub struct Router {
     routes: Vec<CompiledRoute>,
+    auto_routes: Vec<AutoRouteEntry>,
+    auto_candidates: Vec<RouteCandidate>,
+    auto_router_config: Option<AutoRouterConfig>,
     default: ResolvedRoute,
 }
 
@@ -51,6 +72,10 @@ impl Router {
         };
 
         let mut routes = Vec::new();
+        let mut auto_routes = Vec::new();
+        let mut auto_candidates = Vec::new();
+        let mut seen_names = HashSet::new();
+
         for route in &config.routes {
             if route.pattern.is_none() && route.description.is_none() {
                 return Err(format!(
@@ -84,12 +109,91 @@ impl Router {
                     stub_count_tokens: provider.stub_count_tokens,
                 });
             }
+
+            if let (Some(name), Some(description)) = (&route.name, &route.description) {
+                if !seen_names.insert(name.clone()) {
+                    return Err(format!("duplicate route name '{name}'"));
+                }
+
+                auto_routes.push(AutoRouteEntry {
+                    name: name.clone(),
+                    provider_name: route.provider.clone(),
+                    provider_url: provider.url.clone(),
+                    model_rewrite: route.model.clone(),
+                    strip_auth: provider.strip_auth,
+                    api_key: provider.api_key.clone(),
+                    stub_count_tokens: provider.stub_count_tokens,
+                });
+
+                auto_candidates.push(RouteCandidate {
+                    name: name.clone(),
+                    description: description.clone(),
+                });
+            }
         }
 
-        Ok(Router { routes, default })
+        let auto_router_config = if config.auto_router.enabled {
+            if config.auto_router.url.is_empty() {
+                return Err("auto_router.enabled is true but url is empty".to_string());
+            }
+            if auto_candidates.is_empty() {
+                warn!("auto_router is enabled but no routes have descriptions");
+            }
+            Some(AutoRouterConfig {
+                enabled: true,
+                url: config.auto_router.url.clone(),
+                model: config.auto_router.model.clone(),
+                timeout_ms: config.auto_router.timeout_ms,
+            })
+        } else {
+            None
+        };
+
+        Ok(Router {
+            routes,
+            auto_routes,
+            auto_candidates,
+            auto_router_config,
+            default,
+        })
     }
 
-    pub fn resolve(&self, model: &str) -> ResolvedRoute {
+    pub async fn resolve(
+        &self,
+        model: &str,
+        messages: Option<&Vec<serde_json::Value>>,
+        client: &reqwest::Client,
+    ) -> ResolvedRoute {
+        if model == "auto" {
+            if let Some(ref config) = self.auto_router_config
+                && let Some(messages) = messages
+                && !self.auto_candidates.is_empty()
+                && let Some(name) = crate::auto_router::classify(
+                    client,
+                    config,
+                    &self.auto_candidates,
+                    messages,
+                )
+                .await
+                && let Some(entry) = self.auto_routes.iter().find(|r| r.name == name)
+            {
+                return ResolvedRoute {
+                    provider_name: entry.provider_name.clone(),
+                    provider_url: entry.provider_url.clone(),
+                    model_rewrite: entry.model_rewrite.clone(),
+                    strip_auth: entry.strip_auth,
+                    api_key: entry.api_key.clone(),
+                    stub_count_tokens: entry.stub_count_tokens,
+                    routing_method: RoutingMethod::Auto,
+                };
+            }
+            return self.make_default();
+        }
+
+        self.resolve_pattern(model)
+    }
+
+    pub fn resolve_pattern(&self, model: &str) -> ResolvedRoute {
         for route in &self.routes {
             if route.pattern.is_match(model) {
                 return ResolvedRoute {
@@ -104,6 +208,10 @@ impl Router {
             }
         }
 
+        self.make_default()
+    }
+
+    fn make_default(&self) -> ResolvedRoute {
         ResolvedRoute {
             provider_name: self.default.provider_name.clone(),
             provider_url: self.default.provider_url.clone(),
@@ -153,7 +261,7 @@ mod tests {
     fn resolve_production(model: &str) -> ResolvedRoute {
         Router::from_config(&production_config())
             .unwrap()
-            .resolve(model)
+            .resolve_pattern(model)
     }
 
     #[test]
@@ -216,7 +324,7 @@ mod tests {
             "#,
         );
         let router = Router::from_config(&cfg).unwrap();
-        let route = router.resolve("opus");
+        let route = router.resolve_pattern("opus");
         assert_eq!(route.provider_url, "http://a");
     }
 
@@ -281,5 +389,132 @@ mod tests {
         );
         let err = Router::from_config(&cfg).err().expect("should fail");
         assert!(err.contains("not found"), "got: {err}");
+    }
+
+    #[test]
+    fn description_without_name_errors() {
+        let cfg = config(
+            r#"
+            [provider.a]
+            url = "http://a"
+            [[routes]]
+            description = "some task"
+            provider = "a"
+            [default]
+            provider = "a"
+            "#,
+        );
+        let err = Router::from_config(&cfg).err().expect("should fail");
+        assert!(err.contains("description but no name"), "got: {err}");
+    }
+
+    #[test]
+    fn route_without_pattern_or_description_errors() {
+        let cfg = config(
+            r#"
+            [provider.a]
+            url = "http://a"
+            [[routes]]
+            provider = "a"
+            [default]
+            provider = "a"
+            "#,
+        );
+        let err = Router::from_config(&cfg).err().expect("should fail");
+        assert!(
+            err.contains("neither pattern nor description"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn duplicate_route_names_error() {
+        let cfg = config(
+            r#"
+            [provider.a]
+            url = "http://a"
+            [[routes]]
+            name = "coding"
+            description = "code tasks"
+            pattern = "opus"
+            provider = "a"
+            [[routes]]
+            name = "coding"
+            description = "other code tasks"
+            pattern = "sonnet"
+            provider = "a"
+            [default]
+            provider = "a"
+            "#,
+        );
+        let err = Router::from_config(&cfg).err().expect("should fail");
+        assert!(err.contains("duplicate route name"), "got: {err}");
+    }
+
+    #[test]
+    fn auto_router_enabled_without_url_errors() {
+        let cfg = config(
+            r#"
+            [auto_router]
+            enabled = true
+            [provider.a]
+            url = "http://a"
+            [[routes]]
+            name = "coding"
+            description = "code tasks"
+            provider = "a"
+            [default]
+            provider = "a"
+            "#,
+        );
+        let err = Router::from_config(&cfg).err().expect("should fail");
+        assert!(err.contains("url is empty"), "got: {err}");
+    }
+
+    #[test]
+    fn auto_candidates_built_from_description_routes() {
+        let cfg = config(
+            r#"
+            [provider.a]
+            url = "http://a"
+            [provider.b]
+            url = "http://b"
+            [[routes]]
+            name = "coding"
+            description = "code tasks"
+            pattern = "opus"
+            provider = "a"
+            [[routes]]
+            pattern = "sonnet"
+            provider = "b"
+            [default]
+            provider = "a"
+            "#,
+        );
+        let router = Router::from_config(&cfg).unwrap();
+        assert_eq!(router.auto_candidates.len(), 1);
+        assert_eq!(router.auto_candidates[0].name, "coding");
+        assert_eq!(router.auto_routes.len(), 1);
+        // Both routes compiled as pattern routes
+        assert_eq!(router.routes.len(), 2);
+    }
+
+    #[test]
+    fn description_only_route_not_in_pattern_routes() {
+        let cfg = config(
+            r#"
+            [provider.a]
+            url = "http://a"
+            [[routes]]
+            name = "coding"
+            description = "code tasks"
+            provider = "a"
+            [default]
+            provider = "a"
+            "#,
+        );
+        let router = Router::from_config(&cfg).unwrap();
+        assert_eq!(router.routes.len(), 0);
+        assert_eq!(router.auto_candidates.len(), 1);
     }
 }
