@@ -102,15 +102,30 @@ provider = "anthropic"
 
 ### Routes
 
-Routes are matched in order against the `model` field in the JSON request body. Patterns are regular expressions.
+Routes are matched in order against the `model` field in the JSON request body.
 
 | Field | Description |
 |-------|-------------|
-| `pattern` | Regex matched against the model name |
+| `pattern` | Regex matched against the model name (pattern routing) |
+| `name` | Unique name for auto-routing (required when `description` is set) |
+| `description` | Natural-language description of what this route handles (enables auto-routing) |
 | `provider` | Provider to route to |
 | `model` | Rewrite the model name before forwarding |
 
+A route may have `pattern`, `name`+`description`, or both. See [docs/router.md](router.md) for details on auto-routing.
+
 Unmatched requests go to `[default].provider`.
+
+### Auto Router
+
+When enabled, requests with `model: "auto"` are classified against route descriptions using an LLM (e.g. Arch-Router).
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `auto_router.enabled` | Enable AI-based auto-routing | `false` |
+| `auto_router.url` | Classification endpoint (OpenAI-compatible `/v1/chat/completions`) | |
+| `auto_router.model` | Model to use for classification | |
+| `auto_router.timeout_ms` | Request timeout in milliseconds | `2000` |
 
 ### Retention
 

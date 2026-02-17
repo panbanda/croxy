@@ -262,7 +262,13 @@ pub async fn handle_request(
         (None, String::new())
     };
 
-    let route = state.router.resolve(&model);
+    let messages = body_json
+        .as_ref()
+        .and_then(|j| j.get("messages"))
+        .and_then(|m| m.as_array())
+        .map(|v| v.as_slice());
+
+    let route = state.router.resolve(&model, messages, &state.client).await;
 
     if parts.uri.path().contains("/count_tokens") && route.stub_count_tokens {
         debug!(path = %path, "returning stub count_tokens response");
@@ -326,7 +332,7 @@ pub async fn handle_request(
         wallclock,
         model: model.clone(),
         provider: route.provider_name.clone(),
-        routed: route.routed,
+        routing_method: route.routing_method,
         status: status.as_u16(),
         duration: start.elapsed(),
         input_tokens,

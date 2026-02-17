@@ -14,6 +14,8 @@ pub struct Config {
     #[serde(default)]
     pub default: DefaultRoute,
     #[serde(default)]
+    pub auto_router: AutoRouterConfig,
+    #[serde(default)]
     pub logging: LoggingConfig,
     #[serde(default)]
     pub retention: RetentionConfig,
@@ -132,8 +134,37 @@ pub struct ProviderConfig {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AutoRouterConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default = "default_auto_router_timeout_ms")]
+    pub timeout_ms: u64,
+}
+
+impl Default for AutoRouterConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            url: String::new(),
+            model: String::new(),
+            timeout_ms: default_auto_router_timeout_ms(),
+        }
+    }
+}
+
+fn default_auto_router_timeout_ms() -> u64 {
+    2000
+}
+
+#[derive(Debug, Deserialize)]
 pub struct RouteConfig {
-    pub pattern: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub pattern: Option<String>,
     pub provider: String,
     pub model: Option<String>,
 }
@@ -355,5 +386,84 @@ mod tests {
 
         assert!(!cfg.retention.enabled);
         assert_eq!(cfg.retention.minutes, 120);
+    }
+
+    #[test]
+    fn auto_router_defaults_when_omitted() {
+        let cfg: Config = Figment::new().merge(Toml::string("")).extract().unwrap();
+        assert!(!cfg.auto_router.enabled);
+        assert_eq!(cfg.auto_router.timeout_ms, 2000);
+        assert!(cfg.auto_router.url.is_empty());
+        assert!(cfg.auto_router.model.is_empty());
+    }
+
+    #[test]
+    fn auto_router_config_parses() {
+        let cfg: Config = Figment::new()
+            .merge(Toml::string(
+                r#"
+                [auto_router]
+                enabled = true
+                url = "http://localhost:8080/v1/chat/completions"
+                model = "Arch-Router-1.5B"
+                timeout_ms = 3000
+                "#,
+            ))
+            .extract()
+            .unwrap();
+        assert!(cfg.auto_router.enabled);
+        assert_eq!(
+            cfg.auto_router.url,
+            "http://localhost:8080/v1/chat/completions"
+        );
+        assert_eq!(cfg.auto_router.model, "Arch-Router-1.5B");
+        assert_eq!(cfg.auto_router.timeout_ms, 3000);
+    }
+
+    #[test]
+    fn route_with_description_and_pattern() {
+        let cfg: Config = Figment::new()
+            .merge(Toml::string(
+                r#"
+                [provider.a]
+                url = "http://a"
+                [[routes]]
+                name = "coding"
+                description = "code generation tasks"
+                pattern = "opus"
+                provider = "a"
+                [default]
+                provider = "a"
+                "#,
+            ))
+            .extract()
+            .unwrap();
+        assert_eq!(cfg.routes[0].name.as_deref(), Some("coding"));
+        assert_eq!(
+            cfg.routes[0].description.as_deref(),
+            Some("code generation tasks")
+        );
+        assert_eq!(cfg.routes[0].pattern.as_deref(), Some("opus"));
+    }
+
+    #[test]
+    fn route_with_description_only() {
+        let cfg: Config = Figment::new()
+            .merge(Toml::string(
+                r#"
+                [provider.a]
+                url = "http://a"
+                [[routes]]
+                name = "coding"
+                description = "code generation tasks"
+                provider = "a"
+                [default]
+                provider = "a"
+                "#,
+            ))
+            .extract()
+            .unwrap();
+        assert!(cfg.routes[0].pattern.is_none());
+        assert_eq!(cfg.routes[0].name.as_deref(), Some("coding"));
     }
 }

@@ -12,7 +12,7 @@ use http::HeaderValue;
 use tokio::net::TcpListener;
 
 use croxy::config::Config;
-use croxy::metrics::MetricsStore;
+use croxy::metrics::{MetricsStore, RoutingMethod};
 use croxy::proxy::{AppState, handle_request};
 use croxy::router::Router;
 
@@ -495,4 +495,231 @@ async fn get_request_without_body_routes_to_default() {
 
     assert_eq!(resp["echo_method"].as_str().unwrap(), "GET");
     assert!(resp["echo_path"].as_str().unwrap().contains("/v1/models"));
+}
+
+// --- Auto-router integration tests ---
+
+/// Starts a mock auto-router that always returns the given route name.
+async fn start_mock_auto_router(route_name: &str) -> (String, AbortOnDrop) {
+    let response_body = serde_json::json!({
+        "choices": [{"message": {"content": format!(r#"{{"route": "{route_name}"}}"#)}}]
+    });
+    let body_bytes = serde_json::to_vec(&response_body).unwrap();
+
+    let app = AxumRouter::new().fallback(any(move |_req: Request| {
+        let body_bytes = body_bytes.clone();
+        async move {
+            let mut response = Response::new(Body::from(body_bytes));
+            response.headers_mut().insert(
+                http::header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            );
+            response
+        }
+    }));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let url = format!("http://{addr}/v1/chat/completions");
+    let handle = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    (url, AbortOnDrop(handle))
+}
+
+/// Starts a mock auto-router that returns HTTP 500.
+async fn start_failing_auto_router() -> (String, AbortOnDrop) {
+    let app = AxumRouter::new().fallback(any(|_req: Request| async {
+        let mut response = Response::new(Body::from("internal error"));
+        *response.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
+        response
+    }));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let url = format!("http://{addr}/v1/chat/completions");
+    let handle = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    (url, AbortOnDrop(handle))
+}
+
+fn auto_router_config(provider_url: &str, auto_router_url: &str) -> String {
+    format!(
+        r#"
+        [server]
+        [auto_router]
+        enabled = true
+        url = "{auto_router_url}"
+        model = "test-router"
+        timeout_ms = 2000
+        [provider.coding_provider]
+        url = "{provider_url}"
+        [provider.fallback]
+        url = "{provider_url}"
+        [[routes]]
+        name = "coding"
+        description = "Code generation and programming tasks"
+        provider = "coding_provider"
+        model = "coding-model-v1"
+        [[routes]]
+        name = "writing"
+        description = "Creative writing and content drafting"
+        pattern = "writer-.*"
+        provider = "fallback"
+        model = "writing-model-v1"
+        [default]
+        provider = "fallback"
+        "#
+    )
+}
+
+#[tokio::test]
+async fn auto_routes_to_classified_provider() {
+    let (provider_url, _h1) = start_echo_provider().await;
+    let (router_url, _h2) = start_mock_auto_router("coding").await;
+    let (proxy_url, state, _h3) =
+        start_proxy(&auto_router_config(&provider_url, &router_url)).await;
+
+    let resp: serde_json::Value = client()
+        .post(format!("{proxy_url}/v1/messages"))
+        .header("content-type", "application/json")
+        .json(&serde_json::json!({
+            "model": "auto",
+            "messages": [{"role": "user", "content": "write a function"}]
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    // Model should be rewritten to the coding route's model
+    assert_eq!(
+        resp["echo_body"]["model"].as_str().unwrap(),
+        "coding-model-v1"
+    );
+
+    let snap = state.metrics.snapshot();
+    assert_eq!(snap.len(), 1);
+    assert_eq!(snap[0].routing_method, RoutingMethod::Auto);
+    assert_eq!(snap[0].provider, "coding_provider");
+}
+
+#[tokio::test]
+async fn auto_falls_through_to_default_on_router_failure() {
+    let (provider_url, _h1) = start_echo_provider().await;
+    let (router_url, _h2) = start_failing_auto_router().await;
+    let (proxy_url, state, _h3) =
+        start_proxy(&auto_router_config(&provider_url, &router_url)).await;
+
+    let resp: serde_json::Value = client()
+        .post(format!("{proxy_url}/v1/messages"))
+        .header("content-type", "application/json")
+        .json(&serde_json::json!({
+            "model": "auto",
+            "messages": [{"role": "user", "content": "hello"}]
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    // Should still get a 200 from the default provider
+    assert!(resp.get("echo_method").is_some());
+
+    let snap = state.metrics.snapshot();
+    assert_eq!(snap.len(), 1);
+    assert_eq!(snap[0].routing_method, RoutingMethod::Default);
+    assert_eq!(snap[0].provider, "fallback");
+}
+
+#[tokio::test]
+async fn auto_falls_through_when_router_returns_other() {
+    let (provider_url, _h1) = start_echo_provider().await;
+    let (router_url, _h2) = start_mock_auto_router("other").await;
+    let (proxy_url, state, _h3) =
+        start_proxy(&auto_router_config(&provider_url, &router_url)).await;
+
+    let _resp: serde_json::Value = client()
+        .post(format!("{proxy_url}/v1/messages"))
+        .header("content-type", "application/json")
+        .json(&serde_json::json!({
+            "model": "auto",
+            "messages": [{"role": "user", "content": "what time is it"}]
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    let snap = state.metrics.snapshot();
+    assert_eq!(snap.len(), 1);
+    assert_eq!(snap[0].routing_method, RoutingMethod::Default);
+}
+
+#[tokio::test]
+async fn auto_falls_through_when_router_unreachable() {
+    let (provider_url, _h1) = start_echo_provider().await;
+    // Point to a port where nothing is listening
+    let (proxy_url, state, _h2) = start_proxy(&auto_router_config(
+        &provider_url,
+        "http://127.0.0.1:1/v1/chat/completions",
+    ))
+    .await;
+
+    let resp: serde_json::Value = client()
+        .post(format!("{proxy_url}/v1/messages"))
+        .header("content-type", "application/json")
+        .json(&serde_json::json!({
+            "model": "auto",
+            "messages": [{"role": "user", "content": "hello"}]
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert!(resp.get("echo_method").is_some());
+    let snap = state.metrics.snapshot();
+    assert_eq!(snap.len(), 1);
+    assert_eq!(snap[0].routing_method, RoutingMethod::Default);
+}
+
+#[tokio::test]
+async fn pattern_route_still_works_with_auto_router_enabled() {
+    let (provider_url, _h1) = start_echo_provider().await;
+    let (router_url, _h2) = start_mock_auto_router("coding").await;
+    let (proxy_url, state, _h3) =
+        start_proxy(&auto_router_config(&provider_url, &router_url)).await;
+
+    // "writer-pro" matches the pattern "writer-.*" on the writing route
+    let resp: serde_json::Value = client()
+        .post(format!("{proxy_url}/v1/messages"))
+        .header("content-type", "application/json")
+        .json(&serde_json::json!({
+            "model": "writer-pro",
+            "messages": [{"role": "user", "content": "write a poem"}]
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    // Pattern match should rewrite model, not use auto-router
+    assert_eq!(
+        resp["echo_body"]["model"].as_str().unwrap(),
+        "writing-model-v1"
+    );
+
+    let snap = state.metrics.snapshot();
+    assert_eq!(snap.len(), 1);
+    assert_eq!(snap[0].routing_method, RoutingMethod::Pattern);
 }

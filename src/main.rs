@@ -180,6 +180,12 @@ model = "qwen2.5-coder:32b"
 [default]
 provider = "anthropic"
 
+# [auto_router]
+# enabled = true
+# url = "http://localhost:8080/v1/chat/completions"
+# model = "mlx-community/Arch-Router-1.5B-4bit"
+# timeout_ms = 5000
+
 # [retention]
 # enabled = true
 # minutes = 60

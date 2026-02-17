@@ -7,7 +7,7 @@ use ratatui::widgets::{
 };
 
 use super::{format_duration, format_time_ago, format_tokens};
-use crate::metrics::MetricsStore;
+use crate::metrics::{MetricsStore, RoutingMethod};
 
 fn time_axis_labels(num_buckets: usize) -> Vec<String> {
     vec![
@@ -227,7 +227,7 @@ fn draw_live_log(
     scroll: usize,
 ) {
     let header = Row::new(vec![
-        "Age", "Model", "Provider", "Status", "Duration", "In/Out",
+        "Age", "Model", "Provider", "Route", "Status", "Duration", "In/Out",
     ])
     .style(Style::default().add_modifier(Modifier::BOLD))
     .bottom_margin(0);
@@ -254,10 +254,16 @@ fn draw_live_log(
                 Style::default().fg(Color::Green)
             };
             let age = now.duration_since(r.timestamp);
+            let (route_label, route_style) = match r.routing_method {
+                RoutingMethod::Pattern => ("PTN", Style::default().fg(Color::Cyan)),
+                RoutingMethod::Auto => ("AUT", Style::default().fg(Color::Yellow)),
+                RoutingMethod::Default => ("DEF", Style::default().fg(Color::DarkGray)),
+            };
             Row::new(vec![
                 Cell::from(format_time_ago(age)).style(Style::default().fg(Color::DarkGray)),
                 Cell::from(r.model.as_str()),
                 Cell::from(r.provider.as_str()).style(Style::default().fg(Color::DarkGray)),
+                Cell::from(route_label).style(route_style),
                 Cell::from(r.status.to_string()).style(status_style),
                 Cell::from(format_duration(r.duration))
                     .style(duration_style(r.duration, p50, p95, p99)),
@@ -282,6 +288,7 @@ fn draw_live_log(
             Constraint::Length(8),
             Constraint::Min(20),
             Constraint::Length(12),
+            Constraint::Length(5),
             Constraint::Length(6),
             Constraint::Length(10),
             Constraint::Length(12),
