@@ -45,7 +45,7 @@ That's it. Claude Code, Cursor, and any Anthropic-compatible client will now rou
 ## What You Get
 
 - **Live dashboard** -- requests per minute, token throughput, response time percentiles (p50/p95/p99), per-model breakdowns, status code distribution, and error tracking, all updating in real time
-- **Model routing** -- regex-based rules send requests to different providers (Anthropic, Ollama, vllm-mlx, anything Anthropic-compatible) based on model name
+- **Model routing** -- regex patterns and [AI-based auto-routing](docs/router.md) send requests to different providers (Anthropic, Ollama, vllm-mlx, anything Anthropic-compatible) based on model name or conversation content
 - **Zero integration** -- one `eval` in your shell profile, no SDK changes, no per-project config
 - **Foreground or background** -- run with a TUI dashboard, detach to background, or reattach to a running instance
 
@@ -53,7 +53,7 @@ That's it. Claude Code, Cursor, and any Anthropic-compatible client will now rou
 
 `croxy init` creates a starter config at `~/.config/croxy/config.toml` with Anthropic and Ollama pre-configured. Edit it to add providers and routing rules.
 
-See the [configuration guide](docs/configuration.md) for the full reference, including provider setup for Ollama, vllm-mlx, and mixed-provider routing.
+See the [configuration guide](docs/configuration.md) for the full reference, including provider setup for Ollama, vllm-mlx, and mixed-provider routing. For auto-routing with AI classification, see the [routing guide](docs/router.md).
 
 ## CLI
 
