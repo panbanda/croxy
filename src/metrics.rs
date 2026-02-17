@@ -7,6 +7,23 @@ use chrono::{DateTime, Utc};
 
 use crate::metrics_log::MetricsLogger;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoutingMethod {
+    Pattern,
+    Auto,
+    Default,
+}
+
+impl std::fmt::Display for RoutingMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RoutingMethod::Pattern => write!(f, "pattern"),
+            RoutingMethod::Auto => write!(f, "auto"),
+            RoutingMethod::Default => write!(f, "default"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RequestRecord {
     pub id: u64,
@@ -14,7 +31,7 @@ pub struct RequestRecord {
     pub wallclock: DateTime<Utc>,
     pub model: String,
     pub provider: String,
-    pub routed: bool,
+    pub routing_method: RoutingMethod,
     pub status: u16,
     pub duration: Duration,
     pub input_tokens: u64,
@@ -222,7 +239,7 @@ mod tests {
             wallclock: Utc::now(),
             model: "claude-opus-4-6".to_string(),
             provider: "anthropic".to_string(),
-            routed: false,
+            routing_method: RoutingMethod::Default,
             status: 200,
             duration: Duration::from_millis(500),
             input_tokens: 100,

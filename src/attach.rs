@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 use crate::config::MetricsLogConfig;
-use crate::metrics::{MetricsStore, RequestRecord};
+use crate::metrics::{MetricsStore, RequestRecord, RoutingMethod};
 use crate::metrics_log::rotated_path;
 
 #[derive(Debug, Deserialize)]
@@ -33,7 +33,7 @@ pub fn parse_log_entry(line: &str) -> Option<RequestRecord> {
         wallclock: entry.timestamp,
         model: entry.model,
         provider: entry.provider,
-        routed: false,
+        routing_method: RoutingMethod::Default,
         status: entry.status,
         duration: Duration::from_millis(entry.duration_ms),
         input_tokens: entry.input_tokens,

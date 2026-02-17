@@ -1,6 +1,7 @@
 use regex::Regex;
 
 use crate::config::Config;
+use crate::metrics::RoutingMethod;
 
 pub struct ResolvedRoute {
     pub provider_name: String,
@@ -9,7 +10,7 @@ pub struct ResolvedRoute {
     pub strip_auth: bool,
     pub api_key: Option<String>,
     pub stub_count_tokens: bool,
-    pub routed: bool,
+    pub routing_method: RoutingMethod,
 }
 
 struct CompiledRoute {
@@ -46,7 +47,7 @@ impl Router {
             strip_auth: default_provider.strip_auth,
             api_key: default_provider.api_key.clone(),
             stub_count_tokens: default_provider.stub_count_tokens,
-            routed: false,
+            routing_method: RoutingMethod::Default,
         };
 
         let mut routes = Vec::new();
@@ -82,7 +83,7 @@ impl Router {
                     strip_auth: route.strip_auth,
                     api_key: route.api_key.clone(),
                     stub_count_tokens: route.stub_count_tokens,
-                    routed: true,
+                    routing_method: RoutingMethod::Pattern,
                 };
             }
         }
@@ -94,7 +95,7 @@ impl Router {
             strip_auth: self.default.strip_auth,
             api_key: self.default.api_key.clone(),
             stub_count_tokens: self.default.stub_count_tokens,
-            routed: false,
+            routing_method: RoutingMethod::Default,
         }
     }
 }

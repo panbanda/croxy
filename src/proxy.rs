@@ -326,7 +326,7 @@ pub async fn handle_request(
         wallclock,
         model: model.clone(),
         provider: route.provider_name.clone(),
-        routed: route.routed,
+        routing_method: route.routing_method,
         status: status.as_u16(),
         duration: start.elapsed(),
         input_tokens,

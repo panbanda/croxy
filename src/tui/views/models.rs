@@ -4,7 +4,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
 use super::{format_duration, format_tokens};
-use crate::metrics::{MetricsStore, RequestRecord};
+use crate::metrics::{MetricsStore, RequestRecord, RoutingMethod};
 
 /// Builds model-summary rows from a snapshot. Shared by the Models tab and the
 /// overview Token Usage panel.
@@ -32,9 +32,20 @@ pub fn model_table(snap: &[RequestRecord], title: String, skip: usize) -> (Table
             let p50 = MetricsStore::duration_percentile(&durations, 50);
             let p95 = MetricsStore::duration_percentile(&durations, 95);
             let errors: u64 = records.iter().filter(|r| r.status >= 400).count() as u64;
-            let routed = records.iter().any(|r| r.routed);
+            let routing_method =
+                if records.iter().any(|r| r.routing_method == RoutingMethod::Auto) {
+                    RoutingMethod::Auto
+                } else if records.iter().any(|r| r.routing_method == RoutingMethod::Pattern) {
+                    RoutingMethod::Pattern
+                } else {
+                    RoutingMethod::Default
+                };
 
-            let indicator = if routed { "->" } else { "" };
+            let (indicator, indicator_style) = match routing_method {
+                RoutingMethod::Pattern => ("PTN", Style::default().fg(Color::Cyan)),
+                RoutingMethod::Auto => ("AUT", Style::default().fg(Color::Yellow)),
+                RoutingMethod::Default => ("DEF", Style::default().fg(Color::DarkGray)),
+            };
 
             let error_style = if errors > 0 {
                 Style::default().fg(Color::Red)
@@ -43,7 +54,7 @@ pub fn model_table(snap: &[RequestRecord], title: String, skip: usize) -> (Table
             };
 
             Row::new(vec![
-                Cell::from(indicator).style(Style::default().fg(Color::Yellow)),
+                Cell::from(indicator).style(indicator_style),
                 Cell::from(model.clone()).style(Style::default().fg(Color::White)),
                 Cell::from(format_tokens(count)),
                 Cell::from(format_tokens(input)).style(Style::default().fg(Color::Cyan)),
@@ -60,7 +71,7 @@ pub fn model_table(snap: &[RequestRecord], title: String, skip: usize) -> (Table
     let table = Table::new(
         rows,
         [
-            Constraint::Length(2),
+            Constraint::Length(3),
             Constraint::Min(25),
             Constraint::Length(8),
             Constraint::Length(8),
