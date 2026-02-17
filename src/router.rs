@@ -52,22 +52,38 @@ impl Router {
 
         let mut routes = Vec::new();
         for route in &config.routes {
-            let pattern = Regex::new(&route.pattern)
-                .map_err(|e| format!("invalid regex '{}': {}", route.pattern, e))?;
+            if route.pattern.is_none() && route.description.is_none() {
+                return Err(format!(
+                    "route for provider '{}' has neither pattern nor description",
+                    route.provider
+                ));
+            }
+
+            if route.description.is_some() && route.name.is_none() {
+                return Err(format!(
+                    "route for provider '{}' has description but no name",
+                    route.provider
+                ));
+            }
 
             let provider = config.providers.get(&route.provider).ok_or_else(|| {
                 format!("route provider '{}' not found in providers", route.provider)
             })?;
 
-            routes.push(CompiledRoute {
-                pattern,
-                provider_name: route.provider.clone(),
-                provider_url: provider.url.clone(),
-                model_rewrite: route.model.clone(),
-                strip_auth: provider.strip_auth,
-                api_key: provider.api_key.clone(),
-                stub_count_tokens: provider.stub_count_tokens,
-            });
+            if let Some(ref pattern_str) = route.pattern {
+                let pattern = Regex::new(pattern_str)
+                    .map_err(|e| format!("invalid regex '{}': {}", pattern_str, e))?;
+
+                routes.push(CompiledRoute {
+                    pattern,
+                    provider_name: route.provider.clone(),
+                    provider_url: provider.url.clone(),
+                    model_rewrite: route.model.clone(),
+                    strip_auth: provider.strip_auth,
+                    api_key: provider.api_key.clone(),
+                    stub_count_tokens: provider.stub_count_tokens,
+                });
+            }
         }
 
         Ok(Router { routes, default })
