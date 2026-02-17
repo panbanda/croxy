@@ -125,7 +125,7 @@ When enabled, requests with `model: "auto"` are classified against route descrip
 | `auto_router.enabled` | Enable AI-based auto-routing | `false` |
 | `auto_router.url` | Classification endpoint (OpenAI-compatible `/v1/chat/completions`) | |
 | `auto_router.model` | Model to use for classification | |
-| `auto_router.timeout_ms` | Request timeout in milliseconds | `5000` |
+| `auto_router.timeout_ms` | Request timeout in milliseconds | `2000` |
 
 ### Retention
 

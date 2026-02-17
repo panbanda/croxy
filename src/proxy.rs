@@ -270,7 +270,7 @@ pub async fn handle_request(
 
     let route = state
         .router
-        .resolve(&model, messages.as_ref(), &state.client)
+        .resolve(&model, messages.as_deref(), &state.client)
         .await;
 
     if parts.uri.path().contains("/count_tokens") && route.stub_count_tokens {

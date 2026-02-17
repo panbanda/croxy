@@ -161,7 +161,7 @@ impl Router {
     pub async fn resolve(
         &self,
         model: &str,
-        messages: Option<&Vec<serde_json::Value>>,
+        messages: Option<&[serde_json::Value]>,
         client: &reqwest::Client,
     ) -> ResolvedRoute {
         if model == "auto" {

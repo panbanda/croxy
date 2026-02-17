@@ -1,8 +1,12 @@
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use regex::Regex;
 use serde::Deserialize;
 use tracing::{info, warn};
+
+static ROUTE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"\{"route"\s*:\s*"([^"]+)"\}"#).expect("route regex is valid"));
 
 use crate::config::AutoRouterConfig;
 use crate::router::RouteCandidate;
@@ -88,8 +92,7 @@ fn parse_route_name(text: &str, valid_names: &[&str]) -> Option<String> {
     }
 
     // Fallback: regex extraction
-    let re = Regex::new(r#"\{"route"\s*:\s*"([^"]+)"\}"#).ok()?;
-    let captures = re.captures(text)?;
+    let captures = ROUTE_REGEX.captures(text)?;
     let name = captures.get(1)?.as_str();
     if name != "other" && valid_names.contains(&name) {
         Some(name.to_string())
@@ -138,6 +141,14 @@ pub async fn classify(
             return None;
         }
     };
+
+    if !response.status().is_success() {
+        warn!(
+            status = %response.status(),
+            "auto-router returned error status, falling through to default"
+        );
+        return None;
+    }
 
     let chat: ChatResponse = match response.json().await {
         Ok(c) => c,
