@@ -189,6 +189,55 @@ mod tests {
         ]
     }
 
+    fn test_config(url: &str) -> AutoRouterConfig {
+        AutoRouterConfig {
+            enabled: true,
+            url: url.to_string(),
+            model: "test-model".to_string(),
+            timeout_ms: 2000,
+        }
+    }
+
+    fn user_messages() -> Vec<serde_json::Value> {
+        vec![serde_json::json!({"role": "user", "content": "write some code"})]
+    }
+
+    /// Starts a mock server that returns a chat completions response with the given content.
+    async fn start_mock_router(content: &str) -> (String, tokio::task::JoinHandle<()>) {
+        start_mock_router_with_status(200, content).await
+    }
+
+    async fn start_mock_router_with_status(
+        status: u16,
+        content: &str,
+    ) -> (String, tokio::task::JoinHandle<()>) {
+        use axum::extract::Request;
+        use axum::response::Response;
+        use axum::routing::any;
+
+        let body = serde_json::json!({
+            "choices": [{"message": {"content": content}}]
+        });
+        let body_bytes = serde_json::to_vec(&body).unwrap();
+        let status_code = http::StatusCode::from_u16(status).unwrap();
+
+        let app = axum::Router::new().fallback(any(move |_req: Request| {
+            let body_bytes = body_bytes.clone();
+            async move {
+                let mut response = Response::new(axum::body::Body::from(body_bytes));
+                *response.status_mut() = status_code;
+                response
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/v1/chat/completions");
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        (url, handle)
+    }
+
     #[test]
     fn parse_clean_json() {
         let names = vec!["code_gen", "summarize"];
@@ -266,5 +315,110 @@ mod tests {
         let prompt = build_prompt(&routes, &messages);
         assert!(prompt.contains("fix this bug"));
         assert!(prompt.contains("now optimize it"));
+    }
+
+    #[tokio::test]
+    async fn classify_returns_matching_route() {
+        let (url, _handle) = start_mock_router(r#"{"route": "code_gen"}"#).await;
+        let client = reqwest::Client::new();
+        let config = test_config(&url);
+
+        let result = classify(&client, &config, &candidates(), &user_messages()).await;
+        assert_eq!(result, Some("code_gen".to_string()));
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_for_other() {
+        let (url, _handle) = start_mock_router(r#"{"route": "other"}"#).await;
+        let client = reqwest::Client::new();
+        let config = test_config(&url);
+
+        let result = classify(&client, &config, &candidates(), &user_messages()).await;
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_on_http_error() {
+        let (url, _handle) = start_mock_router_with_status(500, "internal error").await;
+        let client = reqwest::Client::new();
+        let config = test_config(&url);
+
+        let result = classify(&client, &config, &candidates(), &user_messages()).await;
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_on_invalid_json() {
+        // Server returns 200 but body isn't a valid ChatResponse
+        use axum::extract::Request;
+        use axum::response::Response;
+        use axum::routing::any;
+
+        let app = axum::Router::new().fallback(any(|_req: Request| async {
+            Response::new(axum::body::Body::from("not json"))
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/v1/chat/completions");
+        let _handle = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let client = reqwest::Client::new();
+        let config = test_config(&url);
+        let result = classify(&client, &config, &candidates(), &user_messages()).await;
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_on_connection_refused() {
+        let client = reqwest::Client::new();
+        let config = test_config("http://127.0.0.1:1/v1/chat/completions");
+
+        let result = classify(&client, &config, &candidates(), &user_messages()).await;
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_on_timeout() {
+        use axum::extract::Request;
+        use axum::response::Response;
+        use axum::routing::any;
+
+        let app = axum::Router::new().fallback(any(|_req: Request| async {
+            tokio::time::sleep(Duration::from_secs(10)).await;
+            Response::new(axum::body::Body::from("too late"))
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/v1/chat/completions");
+        let _handle = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let client = reqwest::Client::new();
+        let mut config = test_config(&url);
+        config.timeout_ms = 100;
+
+        let result = classify(&client, &config, &candidates(), &user_messages()).await;
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_for_empty_routes() {
+        let client = reqwest::Client::new();
+        let config = test_config("http://unused");
+
+        let result = classify(&client, &config, &[], &user_messages()).await;
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn classify_returns_none_for_empty_messages() {
+        let client = reqwest::Client::new();
+        let config = test_config("http://unused");
+
+        let result = classify(&client, &config, &candidates(), &[]).await;
+        assert_eq!(result, None);
     }
 }
