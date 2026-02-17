@@ -168,13 +168,9 @@ impl Router {
             if let Some(ref config) = self.auto_router_config
                 && let Some(messages) = messages
                 && !self.auto_candidates.is_empty()
-                && let Some(name) = crate::auto_router::classify(
-                    client,
-                    config,
-                    &self.auto_candidates,
-                    messages,
-                )
-                .await
+                && let Some(name) =
+                    crate::auto_router::classify(client, config, &self.auto_candidates, messages)
+                        .await
                 && let Some(entry) = self.auto_routes.iter().find(|r| r.name == name)
             {
                 return ResolvedRoute {

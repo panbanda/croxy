@@ -32,14 +32,19 @@ pub fn model_table(snap: &[RequestRecord], title: String, skip: usize) -> (Table
             let p50 = MetricsStore::duration_percentile(&durations, 50);
             let p95 = MetricsStore::duration_percentile(&durations, 95);
             let errors: u64 = records.iter().filter(|r| r.status >= 400).count() as u64;
-            let routing_method =
-                if records.iter().any(|r| r.routing_method == RoutingMethod::Auto) {
-                    RoutingMethod::Auto
-                } else if records.iter().any(|r| r.routing_method == RoutingMethod::Pattern) {
-                    RoutingMethod::Pattern
-                } else {
-                    RoutingMethod::Default
-                };
+            let routing_method = if records
+                .iter()
+                .any(|r| r.routing_method == RoutingMethod::Auto)
+            {
+                RoutingMethod::Auto
+            } else if records
+                .iter()
+                .any(|r| r.routing_method == RoutingMethod::Pattern)
+            {
+                RoutingMethod::Pattern
+            } else {
+                RoutingMethod::Default
+            };
 
             let (indicator, indicator_style) = match routing_method {
                 RoutingMethod::Pattern => ("PTN", Style::default().fg(Color::Cyan)),
