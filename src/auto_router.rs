@@ -170,10 +170,13 @@ pub async fn classify(
 
     match &result {
         Some(name) => info!(route = %name, "auto-router selected route"),
-        None => warn!(
-            response = %content,
-            "auto-router returned no match, falling through to default"
-        ),
+        None => {
+            let truncated: String = content.chars().take(64).collect();
+            warn!(
+                response = %truncated,
+                "auto-router returned no match, falling through to default"
+            );
+        }
     }
 
     result
