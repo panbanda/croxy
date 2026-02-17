@@ -158,7 +158,14 @@ pub async fn classify(
         }
     };
 
-    let content = chat.choices.first()?.message.content.as_deref()?;
+    let Some(content) = chat
+        .choices
+        .first()
+        .and_then(|c| c.message.content.as_deref())
+    else {
+        warn!("auto-router returned empty choices or no content, falling through to default");
+        return None;
+    };
     let result = parse_route_name(content, &valid_names);
 
     match &result {
