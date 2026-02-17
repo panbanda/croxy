@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/panbanda/croxy/compare/croxy-v2.1.1...croxy-v2.2.0) (2026-02-17)
+
+
+### Features
+
+* add AI-based auto-routing with Arch-Router ([#16](https://github.com/panbanda/croxy/issues/16)) ([ee1e0d4](https://github.com/panbanda/croxy/commit/ee1e0d4e3ba36e2f3022570de403e5c039c32190))
+
 ## [2.1.1](https://github.com/panbanda/croxy/compare/croxy-v2.1.0...croxy-v2.1.1) (2026-02-16)
 
 
